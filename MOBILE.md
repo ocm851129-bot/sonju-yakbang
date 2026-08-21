@@ -58,10 +58,29 @@ iOS 프로젝트(`mobile/ios/App/`, Xcode 프로젝트)는 **생성 완료**했�
 |------|------|:---:|
 | **A. Mac + Xcode** | `cd mobile && npm run cap:sync && npx cap open ios` → Xcode에서 Run/Archive | ✅ |
 | **B. PWABuilder** | pwabuilder.com 에 `https://sonju-yakbang.vercel.app` 입력 → iOS 패키지 생성 | ❌(웹) |
-| **C. 클라우드 CI** | Codemagic / Ionic Appflow / GitHub Actions(macOS 러너)로 원격 빌드 | ❌(클라우드) |
+| **C. GitHub Actions (설정 완료)** | `.github/workflows/ios-build.yml` — macOS 러너에서 자동 빌드 → **서명 안 된 .ipa** 아티팩트 | ❌(클라우드) |
 
-> iOS 실기기 설치·앱스토어 배포에는 **Apple Developer 계정(연 $99)** 이 필요합니다.
-> 단순 데모라면 **B(PWABuilder)** 가 가장 간단합니다.
+### ⭐ Mac 없이 iOS 만들기 — 설정 완료된 클라우드 빌드
+공개 저장소라 **GitHub Actions의 macOS 러너가 무료**입니다. `mobile/**` 를 푸시하거나
+GitHub → **Actions** 탭 → **iOS Build (unsigned)** → **Run workflow** 실행하면,
+빌드 후 **`sonju-yakbang-ios-unsigned.ipa`** 아티팩트가 생성됩니다.
+
+이 **서명 안 된 .ipa** 를 본인 아이폰에 설치하는 법 (Windows에서):
+1. PC에 **[Sideloadly](https://sideloadly.io)** 설치 (Windows용 있음)
+2. 아이폰 USB 연결 → Sideloadly에 .ipa 드래그 → **무료 Apple ID** 로그인
+3. 설치 완료 (무료 계정은 **7일마다 재설치** 필요, 유료 계정은 1년)
+
+### iOS "필요한 것" 요약
+| 목적 | 필요한 것 | 비용 |
+|------|-----------|------|
+| 클라우드 빌드(.ipa 생성) | GitHub Actions (이미 설정) | 무료 |
+| 본인 아이폰에 설치(테스트) | 무료 Apple ID + Sideloadly | 무료(7일 갱신) |
+| 실기기 안정 설치 / TestFlight 배포 | **Apple Developer Program** | **$99/년** |
+| App Store 정식 출시 | Apple Developer + 앱 심사 | $99/년 |
+| Xcode에서 직접 빌드 | **macOS + Xcode** | Mac 기기 필요 |
+
+> 심사·시연 목적이면 **B(PWABuilder)** 또는 **C(GitHub Actions + Sideloadly)** 로 Mac 없이 가능.
+> 앱스토어 정식 배포만 Apple Developer 계정($99/년)이 반드시 필요합니다.
 
 ### Mac에서 빌드하는 경우
 ```bash
