@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>손주약방 설치 — 어르신 건강관리 AI</title>
+  <meta name="theme-color" content="#5DB075">
+  <meta property="og:title" content="손주약방 앱 설치">
+  <meta property="og:description" content="어르신 건강관리 AI 플랫폼 — Android · iPhone 설치 안내">
+  <style>
+    :root{--green:#5DB075;--green-d:#4a9c62;--ink:#2D3436;--bg:#F0F7F4;--card:#fff;--line:#e3ece7;}
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Malgun Gothic",sans-serif;
+      background:var(--bg);color:var(--ink);line-height:1.6;padding:env(safe-area-inset-top) 16px 40px;}
+    .wrap{max-width:560px;margin:0 auto;}
+    header{text-align:center;padding:32px 0 20px;}
+    .logo{width:88px;height:88px;border-radius:22px;box-shadow:0 6px 20px rgba(93,176,117,.35);}
+    h1{font-size:26px;margin-top:14px;}
+    .sub{color:#5c6b63;font-size:15px;margin-top:4px;}
+    .card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:20px;margin:16px 0;
+      box-shadow:0 2px 10px rgba(0,0,0,.03);}
+    .card h2{font-size:19px;display:flex;align-items:center;gap:9px;margin-bottom:6px;}
+    .badge{font-size:12px;font-weight:700;color:#fff;background:var(--green);border-radius:999px;padding:3px 10px;}
+    .btn{display:block;text-align:center;text-decoration:none;font-weight:700;font-size:17px;
+      padding:15px;border-radius:14px;margin-top:12px;transition:transform .05s;}
+    .btn:active{transform:scale(.98);}
+    .btn-primary{background:var(--green);color:#fff;}
+    .btn-primary:hover{background:var(--green-d);}
+    .btn-outline{background:#fff;color:var(--green-d);border:2px solid var(--green);}
+    ol{margin:10px 0 0 20px;}ol li{margin:6px 0;}
+    .hl{background:#eaf6ee;border-radius:8px;padding:2px 7px;font-weight:600;}
+    .note{font-size:13px;color:#6b7770;margin-top:12px;}
+    .qr{text-align:center;margin:8px 0;}
+    .qr img{width:180px;height:180px;border:8px solid #fff;border-radius:14px;box-shadow:0 3px 12px rgba(0,0,0,.1);}
+    .dim{opacity:.5;}
+    .platform-tag{display:inline-block;font-size:12px;background:#eaf6ee;color:var(--green-d);
+      border-radius:999px;padding:4px 12px;margin-top:8px;font-weight:700;}
+    footer{text-align:center;font-size:12px;color:#8a968f;margin-top:26px;}
+    a.link{color:var(--green-d);}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <img class="logo" src="icon-512.png" alt="손주약방">
+      <h1>손주약방 설치</h1>
+      <p class="sub">어르신 건강관리 AI 플랫폼</p>
+      <div id="deviceTag" class="platform-tag"></div>
+    </header>
+
+    <!-- 웹앱 바로 사용 -->
+    <div class="card">
+      <h2>🌐 지금 바로 사용 <span class="badge">설치 불필요</span></h2>
+      <p>설치 없이 웹에서 바로 실행됩니다.</p>
+      <a class="btn btn-primary" href="https://sonju-yakbang.vercel.app">웹앱 열기</a>
+      <div class="qr">
+        <img src="qr-install.png" alt="설치 페이지 QR">
+        <p class="note">📷 폰 카메라로 스캔하면 이 페이지가 폰에서 열립니다</p>
+      </div>
+    </div>
+
+    <!-- iPhone -->
+    <div class="card" id="card-ios">
+      <h2>🍎 iPhone · iPad</h2>
+      <span class="platform-tag">방법 A · 가장 쉬움 (계정 불필요)</span>
+      <p style="margin-top:8px"><b>Safari</b>로 웹앱을 열고 홈 화면에 추가하면 앱처럼 씁니다.</p>
+      <ol>
+        <li><b>Safari</b>에서 <span class="hl">sonju-yakbang.vercel.app</span> 접속</li>
+        <li>하단 <b>공유</b> 버튼 <span style="font-size:18px">􀈂</span> 탭</li>
+        <li><b>홈 화면에 추가</b> 선택 → 완료</li>
+      </ol>
+      <a class="btn btn-outline" href="https://sonju-yakbang.vercel.app">Safari로 웹앱 열기</a>
+
+      <span class="platform-tag" style="margin-top:18px">방법 B · .ipa 설치 (Sideloadly)</span>
+      <p style="margin-top:8px">PC의 <a class="link" href="https://sideloadly.io" target="_blank" rel="noopener">Sideloadly</a> + 무료 Apple ID로 아이폰에 설치 (7일마다 갱신).</p>
+      <a class="btn btn-outline" href="https://github.com/ocm851129-bot/sonju-yakbang/releases/download/v1.0.0/sonju-yakbang-unsigned.ipa">iOS .ipa 다운로드</a>
+      <p class="note">※ 무서명 .ipa는 링크 클릭만으로 설치되지 않습니다. App Store 정식 배포는 Apple Developer 계정($99/년)이 필요합니다.</p>
+    </div>
+
+    <!-- Android -->
+    <div class="card" id="card-android">
+      <h2>🤖 Android</h2>
+      <a class="btn btn-primary" href="https://github.com/ocm851129-bot/sonju-yakbang/releases/download/v1.0.0/sonju-yakbang-v1.apk">APK 다운로드 · 설치</a>
+      <ol>
+        <li>위 버튼으로 <b>APK 다운로드</b></li>
+        <li>파일 열기 → <span class="hl">출처를 알 수 없는 앱 설치</span> 허용</li>
+        <li>설치 완료</li>
+      </ol>
+    </div>
+
+    <footer>
+      © 2026 손주약방 · 특허출원 10-2025-0086181<br>
+      <a class="link" href="https://github.com/ocm851129-bot/sonju-yakbang/releases/tag/v1.0.0">모든 다운로드 (GitHub Release)</a>
+    </footer>
+  </div>
+
+  <script>
+    // 기기 감지 → 해당 플랫폼 카드 강조 & 상단 태그
+    (function(){
+      var ua = navigator.userAgent || '';
+      var isIOS = /iPhone|iPad|iPod/.test(ua) || (navigator.platform==='MacIntel' && navigator.maxTouchPoints>1);
+      var isAndroid = /Android/.test(ua);
+      var tag = document.getElementById('deviceTag');
+      var ios = document.getElementById('card-ios');
+      var and = document.getElementById('card-android');
+      if(isIOS){ tag.textContent='🍎 iPhone 감지됨'; and.classList.add('dim'); ios.parentNode.insertBefore(ios, and); }
+      else if(isAndroid){ tag.textContent='🤖 Android 감지됨'; ios.classList.add('dim'); }
+      else { tag.textContent='💻 PC — 폰으로 QR을 스캔하세요'; }
+    })();
+  </script>
+</body>
+</html>
