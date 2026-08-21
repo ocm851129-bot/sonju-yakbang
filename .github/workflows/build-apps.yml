@@ -1,0 +1,108 @@
+name: Build & Release Apps
+
+# frontend/ 또는 mobile/ 를 수정해 push 하면
+# → Android(APK) + iOS(IPA) 를 자동 빌드하고
+# → GitHub Release "latest" 에 최신 산출물을 올립니다.
+# (웹은 Vercel Git 연동으로 자동 배포 — CICD.md 참고)
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'frontend/**'
+      - 'mobile/**'
+      - '.github/workflows/build-apps.yml'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write   # Release 생성/업로드용
+
+jobs:
+  # ─────────────────────────── Android ───────────────────────────
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+      - name: Install SDK packages
+        run: sdkmanager "platforms;android-34" "build-tools;34.0.0"
+      - name: Install JS deps & sync web
+        working-directory: mobile
+        run: |
+          npm ci
+          npm run cap:sync
+      - name: Build debug APK
+        working-directory: mobile/android
+        run: ./gradlew assembleDebug --no-daemon
+      - name: Rename APK
+        run: cp mobile/android/app/build/outputs/apk/debug/app-debug.apk sonju-yakbang.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-apk
+          path: sonju-yakbang.apk
+          if-no-files-found: error
+
+  # ───────────────────────────── iOS ─────────────────────────────
+  ios:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install JS deps & sync web
+        working-directory: mobile
+        run: |
+          npm ci
+          npm run cap:sync
+      - name: Install CocoaPods
+        working-directory: mobile/ios/App
+        run: pod install
+      - name: Build unsigned archive
+        working-directory: mobile/ios/App
+        run: |
+          xcodebuild -workspace App.xcworkspace -scheme App \
+            -configuration Release -sdk iphoneos \
+            -archivePath "$PWD/build/App.xcarchive" archive \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" PROVISIONING_PROFILE="" DEVELOPMENT_TEAM=""
+      - name: Package unsigned IPA
+        working-directory: mobile/ios/App/build
+        run: |
+          mkdir -p Payload
+          cp -R App.xcarchive/Products/Applications/App.app Payload/App.app
+          zip -qry "$GITHUB_WORKSPACE/sonju-yakbang.ipa" Payload
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ios-ipa
+          path: sonju-yakbang.ipa
+          if-no-files-found: error
+
+  # ─────────────────── 최신 산출물 Release 업로드 ───────────────────
+  release:
+    needs: [android, ios]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { name: android-apk }
+      - uses: actions/download-artifact@v4
+        with: { name: ios-ipa }
+      - name: Publish to "latest" release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! gh release view latest >/dev/null 2>&1; then
+            gh release create latest --title "손주약방 최신 빌드" \
+              --notes "main 브랜치 최신 커밋 자동 빌드 · 설치안내: https://sonju-yakbang.vercel.app/install.html" \
+              --latest
+          fi
+          gh release upload latest sonju-yakbang.apk sonju-yakbang.ipa --clobber
