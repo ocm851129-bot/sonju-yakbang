@@ -1,0 +1,29 @@
+{
+  "name": "손주약방 - 어르신 건강관리 AI",
+  "short_name": "손주약방",
+  "description": "어르신 건강관리 AI 플랫폼 - 문진 생성 모델 기반 건강관리 서비스",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F0F7F4",
+  "theme_color": "#5DB075",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["health", "medical"],
+  "lang": "ko",
+  "dir": "ltr",
+  "prefer_related_applications": false
+}

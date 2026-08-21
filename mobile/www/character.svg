@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <!-- 손주약방 캐릭터: 분홍 안경 쓴 단발머리 여자아이 (엄지척) -->
+  
+  <!-- 배경 원 (연보라) -->
+  <circle cx="100" cy="100" r="90" fill="#C5B3E6" opacity="0.3"/>
+  
+  <!-- 머리카락 (갈색 단발) -->
+  <ellipse cx="100" cy="82" rx="42" ry="44" fill="#3D2314"/>
+  <!-- 머리카락 앞머리 -->
+  <path d="M 62 75 Q 70 55 100 52 Q 130 55 138 75 Q 135 62 100 58 Q 65 62 62 75 Z" fill="#2A1A0E"/>
+  <!-- 머리카락 옆 (왼쪽) -->
+  <path d="M 60 78 Q 58 95 62 110 Q 60 108 58 95 Q 57 82 60 78 Z" fill="#3D2314"/>
+  <!-- 머리카락 옆 (오른쪽) -->
+  <path d="M 140 78 Q 142 95 138 110 Q 140 108 142 95 Q 143 82 140 78 Z" fill="#3D2314"/>
+  
+  <!-- 얼굴 -->
+  <ellipse cx="100" cy="95" rx="34" ry="32" fill="#FDEBD0"/>
+  
+  <!-- 볼터치 (분홍) -->
+  <circle cx="76" cy="102" r="8" fill="#FFB3B3" opacity="0.6"/>
+  <circle cx="124" cy="102" r="8" fill="#FFB3B3" opacity="0.6"/>
+  
+  <!-- 안경 프레임 (분홍/마젠타) -->
+  <circle cx="86" cy="92" r="13" fill="none" stroke="#C2185B" stroke-width="3"/>
+  <circle cx="114" cy="92" r="13" fill="none" stroke="#C2185B" stroke-width="3"/>
+  <!-- 안경 브릿지 -->
+  <path d="M 99 92 Q 100 89 101 92" stroke="#C2185B" stroke-width="2.5" fill="none"/>
+  <!-- 안경 다리 -->
+  <line x1="73" y1="90" x2="64" y2="86" stroke="#C2185B" stroke-width="2"/>
+  <line x1="127" y1="90" x2="136" y2="86" stroke="#C2185B" stroke-width="2"/>
+  <!-- 안경 렌즈 (투명) -->
+  <circle cx="86" cy="92" r="11" fill="white" opacity="0.15"/>
+  <circle cx="114" cy="92" r="11" fill="white" opacity="0.15"/>
+  
+  <!-- 눈 -->
+  <ellipse cx="86" cy="93" rx="4.5" ry="5.5" fill="#2C1810"/>
+  <ellipse cx="114" cy="93" rx="4.5" ry="5.5" fill="#2C1810"/>
+  <!-- 눈 하이라이트 -->
+  <circle cx="88" cy="91" r="2" fill="white"/>
+  <circle cx="116" cy="91" r="2" fill="white"/>
+  
+  <!-- 미소 -->
+  <path d="M 92 107 Q 100 114 108 107" stroke="#5D4037" stroke-width="2" fill="none" stroke-linecap="round"/>
+  
+  <!-- 몸통 (흰 가운) -->
+  <path d="M 75 125 Q 72 130 70 150 L 130 150 Q 128 130 125 125 Q 115 122 100 122 Q 85 122 75 125 Z" fill="#F5F5F5"/>
+  <!-- 가운 칼라 -->
+  <path d="M 88 122 L 95 132 L 100 126 L 105 132 L 112 122" fill="none" stroke="#E0E0E0" stroke-width="1.5"/>
+  <!-- 가운 안쪽 (분홍 이너) -->
+  <path d="M 95 126 L 100 122 L 105 126 L 100 132 Z" fill="#F8BBD0"/>
+  
+  <!-- 엄지척 (오른손) -->
+  <g transform="translate(130, 115)">
+    <!-- 손 -->
+    <ellipse cx="8" cy="12" rx="8" ry="10" fill="#FDEBD0"/>
+    <!-- 엄지 -->
+    <ellipse cx="6" cy="0" rx="4.5" ry="9" fill="#FDEBD0" transform="rotate(-10, 6, 0)"/>
+    <!-- 엄지 손톱 -->
+    <ellipse cx="5.5" cy="-6" rx="3" ry="3.5" fill="#FFF0E0"/>
+    <!-- 주먹 접힌 손가락 -->
+    <ellipse cx="8" cy="16" rx="7" ry="4" fill="#F5DEB3"/>
+  </g>
+  
+  <!-- 반짝이 효과 -->
+  <text x="140" y="70" font-size="12" fill="#4FC3F7">✦</text>
+  <text x="55" y="65" font-size="10" fill="#FFD54F">★</text>
+  <text x="148" y="105" font-size="8" fill="#4FC3F7">💧</text>
+</svg>

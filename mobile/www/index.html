@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#5DB075">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="손주약방">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="format-detection" content="telephone=no">
+    <link rel="apple-touch-icon" href="icon-192.png">
+    <title>손주약방 - 어르신 건강관리 AI 플랫폼</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <div id="app" role="application" aria-label="손주약방 어르신 건강관리 AI 플랫폼">
+        <!-- 상단 헤더 -->
+        <header class="app-header" role="banner">
+            <div class="header-top-row">
+                <span class="header-datetime" id="header-datetime">5월 4일 (토) 오후 2:30</span>
+                <span class="header-next-alarm" id="header-next-alarm">💊 오전 8:00 약</span>
+            </div>
+            <div class="header-main-row">
+                <div class="header-left">
+                    <span class="app-logo" aria-hidden="true">🏥</span>
+                    <h1 class="app-title">손주약방</h1>
+                </div>
+                <div class="header-right">
+                    <button class="btn-profile" onclick="navigate('profile')" aria-label="내 정보" id="btn-profile">👤</button>
+                    <button class="btn-emergency" onclick="callEmergency()" aria-label="긴급 전화 119 연결">🚨 긴급전화</button>
+                </div>
+            </div>
+        </header>
+
+        <!-- 메인 콘텐츠 -->
+        <main class="app-main" id="main-content">
+            <!-- 홈 화면 -->
+            <section id="home-screen" class="screen active">
+                <!-- 캐릭터 인사말 -->
+                <div class="greeting-card">
+                    <div class="character-avatar" id="ai-character">
+                        <img src="character.svg" alt="손주약방 캐릭터" class="character-img" />
+                    </div>
+                    <p class="greeting-text" id="greeting-text">오늘도 약 잘 챙기셨어요!</p>
+                </div>
+
+                <!-- 건강 점수 + 바이탈 -->
+                <div class="health-score-card" id="health-score-card">
+                    <div>
+                        <div class="score-circle">
+                            <span class="score-number" id="health-score">82</span>
+                            <span class="score-label">점</span>
+                        </div>
+                    </div>
+                    <div style="flex:1;">
+                        <h2>건강지수</h2>
+                        <p class="score-status" id="score-status">오늘은 안정적인 하루였어요!</p>
+                        <div class="score-details">
+                            <div class="score-detail-item">
+                                <div class="label">❤️ 혈압</div>
+                                <div class="value">124/83</div>
+                            </div>
+                            <div class="score-detail-item">
+                                <div class="label">💧 혈당</div>
+                                <div class="value">98</div>
+                            </div>
+                            <div class="score-detail-item">
+                                <div class="label">⚖️ 체중</div>
+                                <div class="value">62.1kg</div>
+                            </div>
+                            <div class="score-detail-item">
+                                <div class="label">💊 복약</div>
+                                <div class="value">2/2 완료</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 메인 기능 버튼 (2x3 그리드 - 이미지 디자인 반영) -->
+                <div class="main-actions" role="navigation" aria-label="주요 기능">
+                    <button class="action-btn action-emergency-call" onclick="callGuardian()" aria-label="비상연락">
+                        <span class="action-icon" aria-hidden="true">🚑</span>
+                        <span class="action-label">비상연락</span>
+                        <span class="action-desc">보호자 호출</span>
+                    </button>
+                    <button class="action-btn action-health-info" onclick="navigate('health')" aria-label="건강정보">
+                        <span class="action-icon" aria-hidden="true">👨‍⚕️</span>
+                        <span class="action-label">건강정보</span>
+                        <span class="action-desc">맞춤 건강</span>
+                    </button>
+                    <button class="action-btn action-medicine" onclick="navigate('medications')" aria-label="의약품 정보">
+                        <span class="action-icon" aria-hidden="true">💊</span>
+                        <span class="action-label">의약품 정보</span>
+                        <span class="action-desc">복약 관리</span>
+                    </button>
+                    <button class="action-btn action-voice" onclick="navigate('voice')" aria-label="음성으로 증상 말하기">
+                        <span class="action-icon" aria-hidden="true">🎤</span>
+                        <span class="action-label">말하기</span>
+                        <span class="action-desc">증상 말씀하기</span>
+                    </button>
+                    <button class="action-btn action-mystatus" onclick="navigate('mystatus')" aria-label="나의 건강상태">
+                        <span class="action-icon" aria-hidden="true">❤️</span>
+                        <span class="action-label">나의 건강상태</span>
+                        <span class="action-desc">건강지수 확인</span>
+                    </button>
+                    <button class="action-btn action-adcheck" onclick="navigate('adcheck')" aria-label="광고 검증">
+                        <span class="action-icon" aria-hidden="true">🔍</span>
+                        <span class="action-label">광고 검증</span>
+                        <span class="action-desc">허위광고 확인</span>
+                    </button>
+                </div>
+
+                <!-- 오늘의 복약 알림 -->
+                <div class="today-meds-card" id="today-meds">
+                    <h2>💊 복용 중인 약</h2>
+                    <div class="med-timeline" id="med-timeline">
+                        <div class="med-item done">
+                            <div class="med-pill-icon">💊</div>
+                            <div class="med-info">
+                                <div class="med-name">메트포르민 500mg</div>
+                                <div class="med-time">매일 아침 식후 · 복용 완료</div>
+                            </div>
+                            <span class="med-check">✅</span>
+                        </div>
+                        <div class="med-item done">
+                            <div class="med-pill-icon">💊</div>
+                            <div class="med-info">
+                                <div class="med-name">심바스타틴 20mg</div>
+                                <div class="med-time">자녁식후 1정 · 복용 완료</div>
+                            </div>
+                            <span class="med-check">✅</span>
+                        </div>
+                        <div class="med-item pending">
+                            <div class="med-pill-icon">⚠️</div>
+                            <div class="med-info">
+                                <div class="med-name">심바스타틴 + 오메가3</div>
+                                <div class="med-time">일부 병용금기 주의</div>
+                            </div>
+                            <button class="btn-take-med" onclick="runDURCheck()">확인</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 음성 문진 화면 -->
+            <section id="voice-screen" class="screen">
+                <div class="screen-header">
+                    <button class="btn-back" onclick="navigate('home')">← 뒤로</button>
+                    <h2>🎤 말씀해 주세요</h2>
+                </div>
+                <div class="voice-container">
+                    <div class="voice-instruction">
+                        <p class="big-text">어디가 불편하신지<br>편하게 말씀해 주세요</p>
+                        <p class="sub-text">예: "오늘 아침부터 머리가 아파요"</p>
+                    </div>
+                    <button class="btn-voice-record" id="btn-record" onclick="toggleRecording()">
+                        <span class="record-icon" id="record-icon">🎤</span>
+                        <span class="record-label" id="record-label">누르고 말하기</span>
+                    </button>
+                    <div class="voice-result" id="voice-result" style="display:none;">
+                        <h3>📝 인식 결과</h3>
+                        <p id="transcribed-text"></p>
+                        <div id="analysis-result"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 처방전 OCR 화면 -->
+            <section id="ocr-screen" class="screen">
+                <div class="screen-header">
+                    <button class="btn-back" onclick="navigate('home')">← 뒤로</button>
+                    <h2>📷 처방전 찍기</h2>
+                </div>
+                <div class="ocr-container">
+                    <div class="ocr-instruction">
+                        <p class="big-text">처방전을 카메라로<br>찍어주세요</p>
+                        <p class="sub-text">밝은 곳에서 글자가 잘 보이게 찍어주세요</p>
+                    </div>
+                    <div class="camera-area">
+                        <input type="file" id="camera-input" accept="image/*" capture="environment" onchange="handleImage(event)" style="display:none;">
+                        <button class="btn-camera" onclick="document.getElementById('camera-input').click()">
+                            <span class="camera-icon">📸</span>
+                            <span>사진 찍기</span>
+                        </button>
+                    </div>
+                    <div class="ocr-result" id="ocr-result" style="display:none;">
+                        <h3>💊 인식된 약 목록</h3>
+                        <div id="ocr-medications"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 복약 관리 화면 (그림3 반영) -->
+            <section id="medications-screen" class="screen">
+                <div class="screen-header">
+                    <button class="btn-back" onclick="navigate('home')">← 뒤로</button>
+                    <h2>💊 복용 중인 약</h2>
+                </div>
+                <div class="medications-container">
+                    <!-- 복약 기간 정보 -->
+                    <div class="med-period-card">
+                        <div class="med-period-header">
+                            <span class="med-period-label">당뇨약 / 메트포르민 500mg</span>
+                            <span class="med-period-dosage">아침식후 1정</span>
+                        </div>
+                        <div class="med-period-header">
+                            <span class="med-period-label">고지혈증약 / 심바스타틴 20mg</span>
+                            <span class="med-period-dosage">저녁식후 1정</span>
+                        </div>
+                        <div class="med-period-info">
+                            <span>📅 복약 기간: 2025.06.21 ~ 2025.07.05</span>
+                        </div>
+                        <div class="med-alarm-info" id="med-alarm-info">
+                            <span>⏰ 오전 8:00 알림 예정</span>
+                        </div>
+                    </div>
+
+                    <!-- 약 목록 (이미지 포함) -->
+                    <div class="med-visual-list">
+                        <div class="med-visual-item done">
+                            <div class="med-pill-visual">
+                                <div class="pill-image pill-white-round"></div>
+                            </div>
+                            <div class="med-info">
+                                <div class="med-name">메트포르민 500mg</div>
+                                <div class="med-time">매일 아침 식후</div>
+                            </div>
+                            <span class="med-status-badge done">✅ 복용 완료</span>
+                        </div>
+                        <div class="med-visual-item warning">
+                            <div class="med-pill-visual">
+                                <div class="pill-image pill-white-oval"></div>
+                            </div>
+                            <div class="med-info">
+                                <div class="med-name">심바스타틴 20mg</div>
+                                <div class="med-time">⚠️ 일부 병용금기</div>
+                            </div>
+                            <span class="med-status-badge warning">주의</span>
+                        </div>
+                    </div>
+
+                    <!-- 약 카테고리별 목록 -->
+                    <div class="med-category">
+                        <h3>🏥 전문의약품</h3>
+                        <div id="prescription-list" class="med-list"></div>
+                    </div>
+                    <div class="med-category">
+                        <h3>🏪 일반의약품</h3>
+                        <div id="otc-list" class="med-list"></div>
+                    </div>
+                    <div class="med-category">
+                        <h3>🌿 건강기능식품</h3>
+                        <div id="supplement-list" class="med-list"></div>
+                    </div>
+
+                    <!-- DUR 검사 -->
+                    <button class="btn-dur-check" onclick="runDURCheck()">
+                        🔍 약 안전성 검사하기
+                    </button>
+                    <div id="dur-result" style="display:none;"></div>
+
+                    <!-- 하단 퀵 액션 버튼 (그림3 하단) -->
+                    <div class="med-quick-actions">
+                        <button class="med-quick-btn" onclick="navigate('ocr')">
+                            <span class="quick-icon">📷</span>
+                            <span class="quick-label">처방전<br>촬영하기</span>
+                        </button>
+                        <button class="med-quick-btn" onclick="runDURCheck()">
+                            <span class="quick-icon">⚠️</span>
+                            <span class="quick-label">병용금기<br>확인</span>
+                        </button>
+                        <button class="med-quick-btn" onclick="showMedCautions()">
+                            <span class="quick-icon">📋</span>
+                            <span class="quick-label">주의사항<br>보기</span>
+                        </button>
+                        <button class="med-quick-btn" onclick="navigate('health')">
+                            <span class="quick-icon">🌿</span>
+                            <span class="quick-label">건강기능<br>식품 추천</span>
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 건강 상담 (챗봇) 화면 -->
+            <section id="chat-screen" class="screen">
+                <div class="screen-header">
+                    <button class="btn-back" onclick="navigate('home')">← 뒤로</button>
+                    <h2>💬 건강 상담</h2>
+                </div>
+                <div class="chat-container">
+                    <div class="chat-messages" id="chat-messages">
+                        <div class="msg assistant">
+                            <div class="msg-avatar">👨‍⚕️</div>
+                            <div class="msg-bubble">안녕하세요! 궁금한 점이 있으시면 편하게 물어보세요. 약이나 건강에 대해 도와드릴게요.</div>
+                        </div>
+                    </div>
+                    <div class="chat-input-area">
+                        <button class="btn-voice-input" onclick="voiceInput()">🎤</button>
+                        <input type="text" id="chat-input" placeholder="여기에 입력하세요..." class="chat-text-input">
+                        <button class="btn-send" onclick="sendChat()">전송</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 광고 검증 화면 -->
+            <section id="adcheck-screen" class="screen">
+                <div class="screen-header">
+                    <button class="btn-back" onclick="navigate('home')">← 뒤로</button>
+                    <h2>🔍 광고·제품 검증</h2>
+                </div>
+                <div class="ocr-container">
+                    <div class="ocr-instruction">
+                        <p class="big-text">건강기능식품 광고나<br>제품 라벨을 찍어주세요</p>
+                        <p class="sub-text">허위·과장 광고 여부를 AI가 분석해 드려요</p>
+                    </div>
+                    <div class="camera-area" style="display:flex; gap:12px; flex-direction:column;">
+                        <input type="file" id="ad-input" accept="image/*" capture="environment" onchange="handleAdCheck(event)" style="display:none;">
+                        <button class="btn-camera" onclick="document.getElementById('ad-input').click()">
+                            <span class="camera-icon">📸</span>
+                            <span>광고 사진 찍기</span>
+                        </button>
+                        <input type="file" id="label-input" accept="image/*" capture="environment" onchange="handleLabelCheck(event)" style="display:none;">
+                        <button class="btn-camera" onclick="document.getElementById('label-input').click()" style="border-color: var(--safe); color: var(--safe);">
+                            <span class="camera-icon">🏷️</span>
+                            <span>제품 라벨 찍기</span>
+                        </button>
+                    </div>
+                    <div id="ad-result" style="display:none; margin-top:20px;"></div>
+                </div>
+            </section>
+
+            <!-- 나의 건강상태 화면 (그림4 반영) -->
+            <section id="mystatus-screen" class="screen">
+                <div class="screen-header">
+                    <button class="btn-back" onclick="navigate('home')">← 뒤로</button>
+                    <h2>❤️ 나의 건강상태</h2>
+                </div>
+                <div class="mystatus-container">
+                    <!-- 캐릭터 + 상태 메시지 -->
+                    <div class="status-character-card">
+                        <div class="character-avatar-sm">
+                            <img src="character.svg" alt="캐릭터" class="character-img-sm" />
+                        </div>
+                        <p class="status-message" id="status-message">오늘은 안정적인 하루였어요!</p>
+                    </div>
+
+                    <!-- 건강지수 원형 -->
+                    <div class="health-score-main">
+                        <div class="score-circle-lg">
+                            <span class="score-number-lg" id="mystatus-score">82</span>
+                            <span class="score-label-lg">점</span>
+                        </div>
+                        <span class="score-title">건강지수</span>
+                    </div>
+
+                    <!-- 4분할 바이탈 카드 -->
+                    <div class="vital-cards-grid">
+                        <div class="vital-card">
+                            <span class="vital-icon">❤️</span>
+                            <span class="vital-label">혈압</span>
+                            <span class="vital-value" id="vital-bp">124 / 83 mmHg</span>
+                            <span class="vital-status good">정상</span>
+                        </div>
+                        <div class="vital-card">
+                            <span class="vital-icon">💧</span>
+                            <span class="vital-label">혈당</span>
+                            <span class="vital-value" id="vital-sugar">98 mg/dL (공복 시)</span>
+                            <span class="vital-status good">양호</span>
+                        </div>
+                        <div class="vital-card">
+                            <span class="vital-icon">⚖️</span>
+                            <span class="vital-label">체중</span>
+                            <span class="vital-value" id="vital-weight">62.1kg</span>
+                            <span class="vital-status good">유지</span>
+                        </div>
+                        <div class="vital-card">
+                            <span class="vital-icon">💊</span>
+                            <span class="vital-label">복약</span>
+                            <span class="vital-value" id="vital-med">오늘 복약 2건 완료</span>
+                            <span class="vital-status good">이상 없음</span>
+                        </div>
+                    </div>
+
+                    <!-- 추이 그래프 탭 -->
+                    <div class="chart-section">
+                        <div class="chart-tabs">
+                            <button class="chart-tab active" onclick="switchChart('bp')">지난 7일 혈압 변화</button>
+                            <button class="chart-tab" onclick="switchChart('sugar')">혈당 추이</button>
+                            <button class="chart-tab" onclick="switchChart('med')">복약 이행률</button>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="health-chart" width="380" height="200"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 건강 정보 화면 (그림2 반영 - 4분할 카드) -->
+
+            <!-- 사용자 등록/프로필 화면 -->
+            <section id="profile-screen" class="screen">
+                <div class="screen-header">
+                    <button class="btn-back" onclick="navigate('home')">← 뒤로</button>
+                    <h2>👤 내 정보</h2>
+                </div>
+                <div class="profile-container">
+                    <!-- 로그인 상태일 때: 프로필 표시 -->
+                    <div id="profile-loggedin" style="display:none;">
+                        <div class="profile-card">
+                            <div class="profile-avatar">
+                                <img src="character.svg" alt="프로필" class="character-img-sm" />
+                            </div>
+                            <h3 id="profile-name" class="profile-name">홍길동</h3>
+                            <p id="profile-phone" class="profile-detail">010-1234-5678</p>
+                            <p id="profile-birth" class="profile-detail">1955-03-15</p>
+                            <p id="profile-gender" class="profile-detail">남</p>
+                        </div>
+                        <div class="profile-actions">
+                            <button class="btn-profile-action" onclick="navigate('medications')">💊 내 복용약 관리</button>
+                            <button class="btn-profile-action" onclick="navigate('mystatus')">❤️ 건강상태 확인</button>
+                            <button class="btn-profile-action" onclick="showEditProfile()">✏️ 정보 수정</button>
+                            <button class="btn-profile-action logout" onclick="logoutUser()">🚪 로그아웃</button>
+                        </div>
+                    </div>
+
+                    <!-- 비로그인 상태일 때: 로그인/회원가입 -->
+                    <div id="profile-guest">
+                        <!-- 탭 전환 -->
+                        <div class="auth-tabs">
+                            <button class="auth-tab active" id="tab-login" onclick="switchAuthTab('login')">로그인</button>
+                            <button class="auth-tab" id="tab-register" onclick="switchAuthTab('register')">신규 등록</button>
+                        </div>
+
+                        <!-- 로그인 폼 -->
+                        <div id="auth-login" class="auth-form">
+                            <div class="form-group">
+                                <label for="login-phone">📱 전화번호</label>
+                                <input type="tel" id="login-phone" placeholder="010-0000-0000" class="form-input" />
+                            </div>
+                            <button class="btn-auth-submit" onclick="loginUser()">로그인</button>
+                            <p class="auth-hint">등록된 전화번호로 로그인합니다</p>
+                        </div>
+
+                        <!-- 회원가입 폼 -->
+                        <div id="auth-register" class="auth-form" style="display:none;">
+                            <div class="form-group">
+                                <label for="reg-name">👤 이름</label>
+                                <input type="text" id="reg-name" placeholder="홍길동" class="form-input" />
+                            </div>
+                            <div class="form-group">
+                                <label for="reg-phone">📱 전화번호</label>
+                                <input type="tel" id="reg-phone" placeholder="010-0000-0000" class="form-input" />
+                            </div>
+                            <div class="form-group">
+                                <label for="reg-birth">🎂 생년월일</label>
+                                <input type="date" id="reg-birth" class="form-input" />
+                            </div>
+                            <div class="form-group">
+                                <label for="reg-gender">⚧ 성별</label>
+                                <select id="reg-gender" class="form-input">
+                                    <option value="">선택하세요</option>
+                                    <option value="남">남</option>
+                                    <option value="여">여</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="reg-role">👥 사용 유형</label>
+                                <select id="reg-role" class="form-input">
+                                    <option value="patient">환자 (본인)</option>
+                                    <option value="guardian">보호자</option>
+                                </select>
+                            </div>
+                            <button class="btn-auth-submit" onclick="registerUser()">가입하기</button>
+                            <p class="auth-hint">간단한 정보만으로 바로 시작할 수 있어요</p>
+                        </div>
+
+                        <!-- 인증 결과 메시지 -->
+                        <div id="auth-message" class="auth-message" style="display:none;"></div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="health-screen" class="screen">
+                <div class="screen-header">
+                    <button class="btn-back" onclick="navigate('home')">← 뒤로</button>
+                    <h2>❤️ 건강정보</h2>
+                </div>
+                <div class="health-info-container">
+                    <!-- 상단 인사말 + 해시태그 -->
+                    <div class="health-greeting-card">
+                        <div class="character-avatar-sm">
+                            <img src="character.svg" alt="캐릭터" class="character-img-sm" />
+                        </div>
+                        <p class="health-greeting-text">오늘도 건강하게 시작해 볼까요?</p>
+                        <div class="health-tags" id="health-tags">
+                            <span class="health-tag">#혈압관리</span>
+                            <span class="health-tag">#마음의 안정</span>
+                        </div>
+                    </div>
+
+                    <!-- 4분할 카드 그리드 -->
+                    <div class="health-cards-grid">
+                        <!-- 나의 질환 정보 -->
+                        <div class="health-info-card card-disease" onclick="showDiseaseInfo()">
+                            <div class="card-icon-area">💓</div>
+                            <h3 class="card-title">나의 질환 정보</h3>
+                            <p class="card-desc" id="my-disease-desc">고혈압 관리</p>
+                        </div>
+
+                        <!-- 식단팁 -->
+                        <div class="health-info-card card-diet" onclick="showDietTips()">
+                            <div class="card-icon-area">🍊</div>
+                            <h3 class="card-title">식단팁</h3>
+                            <p class="card-desc" id="diet-tip-desc">단백질이 풍부한 식단</p>
+                        </div>
+
+                        <!-- 건강기능식품 추천 -->
+                        <div class="health-info-card card-supplement" onclick="showSupplementRecommend()">
+                            <div class="card-icon-area">💊</div>
+                            <h3 class="card-title">건강기능식품 추천</h3>
+                            <p class="card-desc">함께 복용하면 좋은 영양제 추천</p>
+                        </div>
+
+                        <!-- 심신안정에 좋은 노래 -->
+                        <div class="health-info-card card-relax" onclick="showRelaxContent()">
+                            <div class="card-icon-area">🎵</div>
+                            <h3 class="card-title">심신안정에 좋은 노래</h3>
+                            <p class="card-desc">마음 안정에 좋은 음악</p>
+                        </div>
+                    </div>
+
+                    <!-- 질환 정보 상세 -->
+                    <div id="disease-detail" class="health-detail-panel" style="display:none;"></div>
+                    <!-- 식단 상세 -->
+                    <div id="diet-detail" class="health-detail-panel" style="display:none;"></div>
+                    <!-- 건기식 추천 상세 -->
+                    <div id="supplement-detail" class="health-detail-panel" style="display:none;"></div>
+                    <!-- 심신안정 콘텐츠 상세 -->
+                    <div id="relax-detail" class="health-detail-panel" style="display:none;"></div>
+                </div>
+            </section>
+        </main>
+
+        <!-- 하단 네비게이션 -->
+        <nav class="bottom-nav" role="navigation" aria-label="메인 네비게이션">
+            <button class="nav-item active" onclick="navigate('home')" aria-label="홈 화면" aria-current="page">
+                <span class="nav-icon" aria-hidden="true">🏠</span>
+                <span class="nav-label">홈</span>
+            </button>
+            <button class="nav-item" onclick="navigate('health')" aria-label="건강정보">
+                <span class="nav-icon" aria-hidden="true">📊</span>
+                <span class="nav-label">건강정보</span>
+            </button>
+            <button class="nav-item" onclick="navigate('medications')" aria-label="내 약 관리">
+                <span class="nav-icon" aria-hidden="true">💊</span>
+                <span class="nav-label">내 약</span>
+            </button>
+            <button class="nav-item" onclick="navigate('mystatus')" aria-label="나의 건강상태">
+                <span class="nav-icon" aria-hidden="true">❤️</span>
+                <span class="nav-label">건강상태</span>
+            </button>
+            <button class="nav-item" onclick="navigate('chat')" aria-label="건강 상담">
+                <span class="nav-icon" aria-hidden="true">💬</span>
+                <span class="nav-label">상담</span>
+            </button>
+        </nav>
+    </div>
+
+    <script src="config.js"></script>
+    <script src="offline-dur.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

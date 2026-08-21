@@ -42,3 +42,20 @@ desktop.ini
 *.log
 tmp/
 temp/
+
+# ===== Capacitor / 모바일 빌드 =====
+mobile/node_modules/
+mobile/android/build/
+mobile/android/.gradle/
+mobile/android/app/build/
+mobile/android/local.properties
+mobile/android/.idea/
+mobile/android/captures/
+mobile/ios/App/Pods/
+mobile/ios/App/build/
+mobile/ios/App/App/public/
+mobile/android/app/src/main/assets/public/
+dist/
+*.apk
+*.aab
+*.ipa

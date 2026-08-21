@@ -1,0 +1,12 @@
+{
+  "appId": "kr.co.metaict.sonjuyakbang",
+  "appName": "손주약방",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https",
+    "iosScheme": "https"
+  },
+  "android": {
+    "allowMixedContent": true
+  }
+}
