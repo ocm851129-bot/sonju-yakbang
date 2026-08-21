@@ -1,0 +1,18 @@
+# 손주약방 백엔드 의존성
+# Python 3.14 호환 버전 (2026-08 기준 검증 완료)
+# ※ 원래의 고정 버전(Python 3.9~3.13용)은 requirements-original-py313.txt 참고.
+#   구버전 pydantic-core/Pillow는 Python 3.14용 휠이 없어 빌드에 실패하므로 아래 버전을 사용합니다.
+fastapi==0.141.1
+uvicorn==0.52.4
+sqlalchemy==2.0.52
+pydantic==2.13.4
+python-multipart==0.0.32
+openai==3.3.1
+python-jose[cryptography]==3.5.0
+passlib[bcrypt]==1.7.4
+python-dotenv==1.2.3
+httpx==0.28.1
+apscheduler==3.11.3
+Pillow==12.3.0
+websockets==17.0.1
+cryptography==50.0.0

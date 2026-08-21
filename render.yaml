@@ -1,0 +1,22 @@
+# 손주약방 백엔드 - Render.com 배포 Blueprint
+# https://render.com/docs/blueprint-spec
+# Render 대시보드에서 "New +" → "Blueprint" → 이 저장소 선택 시 자동 인식됩니다.
+services:
+  - type: web
+    name: sonju-yakbang-api
+    runtime: python
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.7
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        value: sqlite:///./sonju_yakbang.db
+      # OPENAI_API_KEY 는 대시보드에서 직접 입력하세요 (없어도 규칙기반 데모로 동작)
+      - key: OPENAI_API_KEY
+        sync: false

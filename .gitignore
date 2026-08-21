@@ -1,0 +1,44 @@
+# ===== 비밀/환경 =====
+.env
+.env.local
+backend/.env
+*.env
+!.env.example
+!backend/.env.example
+
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+backend/venv/
+venv/
+env/
+.venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+
+# ===== 데이터베이스 =====
+*.db
+*.sqlite
+*.sqlite3
+backend/sonju_yakbang.db
+
+# ===== Node / Vercel =====
+node_modules/
+.vercel/
+.next/
+
+# ===== 에디터/OS =====
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ===== 로그/임시 =====
+*.log
+tmp/
+temp/
