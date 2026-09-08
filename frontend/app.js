@@ -169,23 +169,80 @@ async function handleImage(event) {
     }
 }
 
+function escapeHtml(s) {
+    return String(s || '').replace(/[&<>"']/g, c => (
+        { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+    ));
+}
+
+// 식약처 허가정보를 어르신 친화 카드로 렌더링 (permit 객체 또는 drug-info 응답 공용)
+function renderDrugInfoCard(info, opts) {
+    opts = opts || {};
+    const otc = info.etc_otc || (info.category === 'otc' ? '일반의약품' : info.category === 'supplement' ? '건강기능식품' : '전문의약품');
+    const rows = [
+        ['💡 효능·효과', info.easy_effect || info.effect],
+        ['🕐 복용 방법', info.easy_usage || info.usage],
+        ['⚠️ 주의사항', info.easy_caution || info.caution],
+        ['🤒 부작용', info.easy_side_effect],
+        ['📦 보관 방법', info.easy_storage || info.storage],
+        ['🧪 성분', info.ingredient],
+        ['👁 생김새', info.appearance],
+    ].filter(r => r[1]);
+
+    let inner = '';
+    if (opts.showTitle && (info.item_name || info.company)) {
+        inner += `<div class="drug-card-title">${escapeHtml(info.item_name)}</div>`;
+    }
+    let tags = '';
+    if (otc) tags += `<span class="drug-tag">${escapeHtml(otc)}</span>`;
+    if (info.class_name) tags += `<span class="drug-tag">${escapeHtml(info.class_name)}</span>`;
+    if (info.company) tags += `<span class="drug-tag drug-tag-plain">${escapeHtml(info.company)}</span>`;
+    if (tags) inner += `<div class="drug-tags">${tags}</div>`;
+
+    if (info.image_url) {
+        inner += `<img class="drug-pill-img" src="${escapeHtml(info.image_url)}" alt="약 사진" loading="lazy">`;
+    }
+
+    for (const [label, val] of rows) {
+        inner += `<div class="drug-info-row"><div class="drug-info-label">${label}</div><div class="drug-info-val">${escapeHtml(val)}</div></div>`;
+    }
+
+    if (info.is_demo) {
+        inner += `<p class="drug-demo-note">※ 예시 정보입니다. 공공데이터 인증키 연결 시 실시간 허가정보가 표시됩니다.</p>`;
+    }
+    return `<div class="drug-info-card">${inner}</div>`;
+}
+
 function renderOCRResult(data) {
     const medsDiv = document.getElementById('ocr-medications');
     let html = '';
 
-    if (data.hospital) html += `<p><strong>병원:</strong> ${data.hospital}</p>`;
-    if (data.diagnosis) html += `<p><strong>진단:</strong> ${data.diagnosis}</p>`;
-    if (data.date) html += `<p><strong>처방일:</strong> ${data.date}</p>`;
+    if (data.hospital) html += `<p><strong>병원:</strong> ${escapeHtml(data.hospital)}</p>`;
+    if (data.diagnosis) html += `<p><strong>진단:</strong> ${escapeHtml(data.diagnosis)}</p>`;
+    if (data.date) html += `<p><strong>처방일:</strong> ${escapeHtml(data.date)}</p>`;
     if (data.confidence) html += `<p><strong>인식 정확도:</strong> ${(data.confidence * 100).toFixed(0)}%</p>`;
 
     html += '<hr style="margin:12px 0;">';
 
-    for (const med of data.medications || []) {
+    (data.medications || []).forEach((med, idx) => {
+        const hasPermit = med.permit && (med.permit.easy_effect || med.permit.effect || med.permit.easy_caution || med.permit.caution);
         html += `
             <div class="med-item" style="border-color: var(--primary);">
-                <span class="med-name"><strong>${med.name}</strong></span>
-                <span style="font-size:14px;color:#555;">${med.frequency || ''}</span>
+                <span class="med-name"><strong>${escapeHtml(med.name)}</strong></span>
+                <span style="font-size:14px;color:#555;">${escapeHtml(med.frequency || '')}</span>
             </div>`;
+        if (hasPermit) {
+            const merged = Object.assign({ item_name: med.name, ingredient: med.ingredient, category: med.category }, med.permit);
+            html += `
+                <button class="btn-drug-detail" onclick="toggleDrugDetail(${idx})">📋 이 약은 어떤 약인가요?</button>
+                <div class="drug-detail-wrap" id="drug-detail-${idx}" style="display:none;">
+                    ${renderDrugInfoCard(merged, { showTitle: false })}
+                </div>`;
+        }
+    });
+
+    if (data.drug_info_source) {
+        html += `<p class="drug-source-line">ℹ️ 약품정보 출처: ${escapeHtml(data.drug_info_source)}</p>`;
     }
 
     html += `<button class="btn-take-med" style="width:100%;margin-top:16px;" onclick="alert('약 목록에 추가되었습니다!')">
@@ -193,6 +250,36 @@ function renderOCRResult(data) {
     </button>`;
 
     medsDiv.innerHTML = html;
+}
+
+function toggleDrugDetail(idx) {
+    const el = document.getElementById(`drug-detail-${idx}`);
+    if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+// 약 이름으로 식약처 허가정보 직접 검색
+async function searchDrug() {
+    const input = document.getElementById('drug-search-input');
+    const resultDiv = document.getElementById('drug-search-result');
+    const name = (input.value || '').trim();
+    if (!name) {
+        resultDiv.innerHTML = '<p class="sub-text">약 이름을 입력해주세요.</p>';
+        return;
+    }
+    resultDiv.innerHTML = '<p class="sub-text">약품 정보를 찾고 있습니다...</p>';
+    try {
+        const response = await fetch(`${API_BASE}/drug-info/search?name=${encodeURIComponent(name)}`);
+        if (!response.ok) throw new Error('lookup failed');
+        const info = await response.json();
+        if (!info.matched) {
+            resultDiv.innerHTML = `<p class="sub-text">'${escapeHtml(name)}'에 대한 허가정보를 찾지 못했습니다. 약 이름을 정확히 입력해 주세요.</p>`;
+            return;
+        }
+        resultDiv.innerHTML = renderDrugInfoCard(info, { showTitle: true });
+        if (info.easy_effect || info.effect) speak(`${info.item_name}. ${info.easy_effect || info.effect}`);
+    } catch (err) {
+        resultDiv.innerHTML = '<p class="sub-text">지금은 약품 정보를 불러올 수 없습니다. 잠시 후 다시 시도해 주세요.</p>';
+    }
 }
 
 // ==================== DUR 분석 ====================
@@ -259,7 +346,7 @@ function renderDURResult(data) {
         }
     }
 
-    html += `<p style="margin-top:12px;font-size:14px;color:#888;">※ 이 정보는 참고용이며, 정확한 판단은 약사 또는 의사와 상담하세요.</p>`;
+    html += `<p style="margin-top:12px;font-size:14px;color:var(--text-secondary);">※ 이 정보는 참고용이며, 정확한 판단은 약사 또는 의사와 상담하세요.</p>`;
     resultDiv.innerHTML = html;
 }
 

@@ -192,6 +192,18 @@
                         <h3>💊 인식된 약 목록</h3>
                         <div id="ocr-medications"></div>
                     </div>
+
+                    <!-- 약품 이름으로 직접 검색 (식약처 허가정보) -->
+                    <div class="drug-search-box">
+                        <h3>🔎 약 이름으로 정보 찾기</h3>
+                        <p class="sub-text">식품의약품안전처 허가정보로 효능·복용법·주의사항을 알려드려요</p>
+                        <div class="drug-search-row">
+                            <input type="text" id="drug-search-input" class="drug-search-input"
+                                   placeholder="예) 아모디핀정 5mg" onkeydown="if(event.key==='Enter')searchDrug()">
+                            <button class="btn-drug-search" onclick="searchDrug()">검색</button>
+                        </div>
+                        <div id="drug-search-result"></div>
+                    </div>
                 </div>
             </section>
 

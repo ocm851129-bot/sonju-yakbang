@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.database import engine, Base, SessionLocal
-from app.routers import auth, voice, ocr, medications, chat, dur, health, guardian, ad_filter, character, wearable, digital_twin, wellness
+from app.routers import auth, voice, ocr, medications, chat, dur, health, guardian, ad_filter, character, wearable, digital_twin, wellness, drug_info
 from app.fhir import to_fhir_patient, to_fhir_medication_statement, to_fhir_observation, to_fhir_bundle
 from app.agent_scheduler import init_scheduler
 from app.rag_engine import initialize_knowledge_base
@@ -28,6 +28,7 @@ app.add_middleware(
 app.include_router(auth.router, prefix="/api/auth", tags=["인증"])
 app.include_router(voice.router, prefix="/api/voice", tags=["음성 문진"])
 app.include_router(ocr.router, prefix="/api/ocr", tags=["처방전 OCR"])
+app.include_router(drug_info.router, prefix="/api/drug-info", tags=["의약품 허가정보"])
 app.include_router(medications.router, prefix="/api/medications", tags=["복약 관리"])
 app.include_router(chat.router, prefix="/api/chat", tags=["건강 상담"])
 app.include_router(dur.router, prefix="/api/dur", tags=["DUR 분석"])

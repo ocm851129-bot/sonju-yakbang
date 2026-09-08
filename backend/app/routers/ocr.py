@@ -8,6 +8,7 @@ from openai import OpenAI
 from app.database import get_db
 from app.models import HealthRecord, Medication
 from app.config import OPENAI_API_KEY, GOOGLE_VISION_API_KEY, CLOVA_OCR_SECRET, CLOVA_OCR_URL
+from app.drug_permission import get_drug_full_info
 import base64
 import json
 import httpx
@@ -24,6 +25,55 @@ class OCRResult(BaseModel):
     raw_text: str = ""
     confidence: float = 0.0
     ocr_engine: str = ""
+    drug_info_source: str = ""  # 허가정보 보강 출처
+
+
+# 허가정보로 보강할 최대 약품 수 (API 호출 과다 방지)
+MAX_ENRICH = 8
+
+
+async def enrich_medications_with_permit(medications: list) -> str:
+    """OCR로 추출한 각 의약품을 식약처 허가정보/e약은요로 보강한다.
+
+    각 약품 dict에 permit(효능·용법·주의·저장·성상·업체·쉬운말설명) 키를 추가하고,
+    비어있는 ingredient는 허가정보의 성분으로 채운다.
+    반환값: 실제로 사용된 데이터 출처 요약 문자열.
+    """
+    sources = set()
+    for med in medications[:MAX_ENRICH]:
+        name = med.get("name", "")
+        if not name:
+            continue
+        try:
+            info = await get_drug_full_info(name, med.get("ingredient", ""))
+        except Exception:
+            continue
+        if not info.get("matched"):
+            continue
+        # 성분이 비어있으면 허가정보로 보강
+        if not med.get("ingredient") and info.get("ingredient"):
+            med["ingredient"] = info["ingredient"]
+        if info.get("category"):
+            med["category"] = info["category"]
+        # 어르신 화면에 보여줄 핵심 정보만 압축해서 첨부
+        med["permit"] = {
+            "company": info.get("company", ""),
+            "etc_otc": info.get("etc_otc", ""),
+            "class_name": info.get("class_name", ""),
+            "appearance": info.get("appearance", ""),
+            "storage": info.get("storage", ""),
+            "effect": info.get("effect", ""),
+            "usage": info.get("usage", ""),
+            "caution": info.get("caution", ""),
+            "easy_effect": info.get("easy_effect", ""),
+            "easy_caution": info.get("easy_caution", ""),
+            "easy_side_effect": info.get("easy_side_effect", ""),
+            "image_url": info.get("image_url", ""),
+            "is_demo": info.get("is_demo", False),
+        }
+        for s in info.get("sources", []):
+            sources.add(s)
+    return " · ".join(sorted(sources))
 
 
 # ==================== 1차 OCR: Google Vision API ====================
@@ -171,6 +221,9 @@ async def scan_prescription(
         # 2차 구조화: GPT Vision (1차 OCR 텍스트를 컨텍스트로 전달)
         result = await gpt_vision_structure(image_content, raw_text)
 
+        # 3차 보강: 식약처 의약품 제품 허가정보 + e약은요로 각 약품 정보 채우기
+        drug_info_source = await enrich_medications_with_permit(result.get("medications", []))
+
         # DB에 건강기록 저장
         record = HealthRecord(
             user_id=user_id,
@@ -205,6 +258,7 @@ async def scan_prescription(
             raw_text=raw_text[:500] if raw_text else "",
             confidence=result.get("confidence", 0.0),
             ocr_engine=ocr_engine,
+            drug_info_source=drug_info_source,
         )
 
     except Exception as e:
@@ -218,6 +272,11 @@ async def scan_prescription(
             {"name": "아토르바스타틴정 20mg", "ingredient": "아토르바스타틴", "dosage": "1정",
              "frequency": "1일 1회 취침 전", "duration": "28일", "category": "prescription"},
         ]
+        # 데모 약품도 허가정보(또는 로컬 데모 DB)로 보강
+        try:
+            demo_source = await enrich_medications_with_permit(demo_meds)
+        except Exception:
+            demo_source = ""
         return OCRResult(
             medications=demo_meds,
             hospital="서울내과의원",
@@ -226,4 +285,5 @@ async def scan_prescription(
             raw_text="(데모 모드: AI OCR 연결이 없어 예시 데이터를 표시합니다)",
             confidence=0.92,
             ocr_engine="demo-mode",
+            drug_info_source=demo_source,
         )

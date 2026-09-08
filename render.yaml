@@ -20,3 +20,8 @@ services:
       # OPENAI_API_KEY 는 대시보드에서 직접 입력하세요 (없어도 규칙기반 데모로 동작)
       - key: OPENAI_API_KEY
         sync: false
+      # 식약처 공공데이터포털(data.go.kr) 공용 인증키 — 대시보드에서 직접 입력.
+      # 이 키 하나로 DUR 성분정보 + 의약품 제품 허가정보 + e약은요 모두 동작합니다.
+      # (미입력 시 약품정보는 데모 데이터로 폴백)
+      - key: DATA_GO_KR_API_KEY
+        sync: false

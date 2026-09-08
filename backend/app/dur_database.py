@@ -1,117 +1,108 @@
 """DUR 공공데이터 연동 모듈
-공공데이터포털 의약품안전나라 DUR API 연동
+공공데이터포털 '의약품안전사용서비스(DUR) 성분정보' API(DURIrdntInfoService03) 연동
 
-API 서비스:
-- DURPrdlstInfoService03: 병용금기, 특정연령대금기, 용량주의 등
-- 식약처 의약품 개요 정보 (e약은요)
+성분(Ingredient) 기준으로 아래 7종 안전정보를 조회합니다:
+  - getUsjntTabooInfoList02      병용금기
+  - getSpcifyAgrdeTabooInfoList02 특정연령대금기
+  - getPwnmTabooInfoList02        임부금기
+  - getCpctyAtentInfoList02       용량주의
+  - getMdctnPdAtentInfoList02     투여기간주의
+  - getOdsnAtentInfoList02        노인주의
+  - getEfcyDplctInfoList02        효능군중복
 
-참고: https://www.data.go.kr/data/15075057/openapi.do
+검색 파라미터는 오퍼레이션마다 ingrName / ingrKorName 로 상이하여 둘 다 전송합니다
+(미인식 파라미터는 API가 무시하므로 안전). 실측 검증 완료.
+
+참고: https://www.data.go.kr/data/15075057/openapi.do (e약은요는 drug_permission.py 사용)
 """
 import httpx
 from typing import Optional
-from app.config import DUR_API_KEY, DUR_API_BASE
+from app.config import DUR_API_KEY, DUR_API_BASE, DRUG_EASY_API_KEY
 
 
-# ==================== 공공 DUR API 조회 ====================
+# ==================== 공공 DUR 성분정보 API 조회 ====================
 
-async def search_dur_contraindication(ingredient_a: str, ingredient_b: str) -> list:
-    """병용금기 조회 (의약품안전나라 DUR API)
-    
-    두 성분 간 병용금기 정보를 공공데이터에서 조회합니다.
-    """
-    if not DUR_API_KEY:
+async def _dur_get(operation: str, ingredient: str, num_rows: int = 30) -> list:
+    """DUR 성분정보 서비스의 특정 오퍼레이션을 성분명으로 조회한다."""
+    if not DUR_API_KEY or not ingredient:
         return []
 
-    url = f"{DUR_API_BASE}/getUsjntTabooInfoList03"
+    url = f"{DUR_API_BASE}/{operation}"
     params = {
         "serviceKey": DUR_API_KEY,
-        "typeName": "병용금기",
-        "itemName": ingredient_a,
+        # 오퍼레이션별 검색 파라미터 상이 → 둘 다 전송(미인식 파라미터는 무시됨)
+        "ingrName": ingredient,
+        "ingrKorName": ingredient,
         "type": "json",
-        "numOfRows": 20,
+        "numOfRows": num_rows,
         "pageNo": 1,
     }
-
     try:
-        async with httpx.AsyncClient(timeout=10) as client:
+        async with httpx.AsyncClient(timeout=12) as client:
             response = await client.get(url, params=params)
-            if response.status_code == 200:
-                data = response.json()
-                items = data.get("body", {}).get("items", [])
-                if isinstance(items, list):
-                    # ingredient_b와 매칭되는 것만 필터링
-                    return [
-                        item for item in items
-                        if ingredient_b.lower() in (item.get("MIXTURE_ITEM_NAME", "") or "").lower()
-                        or ingredient_b.lower() in (item.get("INGR_NAME", "") or "").lower()
-                    ]
+            if response.status_code != 200:
+                return []
+            data = response.json()
+            items = (data.get("body", {}) or {}).get("items", []) or []
+            if isinstance(items, dict):
+                items = [items]
+            # 일부 응답은 [{"item": {...}}] 형태
+            return [it.get("item", it) if isinstance(it, dict) else it for it in items]
     except Exception:
-        pass
-    return []
+        return []
+
+
+async def search_dur_contraindication(ingredient_a: str, ingredient_b: str) -> list:
+    """병용금기 조회 — 성분A로 조회 후 상대성분B가 포함된 항목만 반환."""
+    items = await _dur_get("getUsjntTabooInfoList02", ingredient_a)
+    b = (ingredient_b or "").lower()
+    results = []
+    for item in items:
+        mixture = (item.get("MIXTURE_INGR_KOR_NAME", "") or "").lower()
+        mixture_eng = (item.get("MIXTURE_INGR_ENG_NAME", "") or "").lower()
+        if not b or b in mixture or b in mixture_eng:
+            results.append(item)
+    return results
 
 
 async def search_dur_elderly_caution(ingredient: str) -> list:
-    """특정연령대금기(노인주의) 조회"""
-    if not DUR_API_KEY:
-        return []
+    """노인주의 조회 (고령자 특화)."""
+    return await _dur_get("getOdsnAtentInfoList02", ingredient)
 
-    url = f"{DUR_API_BASE}/getSpcifyAgrdeTabooInfoList03"
-    params = {
-        "serviceKey": DUR_API_KEY,
-        "typeName": "특정연령대금기",
-        "itemName": ingredient,
-        "type": "json",
-        "numOfRows": 20,
-        "pageNo": 1,
-    }
 
-    try:
-        async with httpx.AsyncClient(timeout=10) as client:
-            response = await client.get(url, params=params)
-            if response.status_code == 200:
-                data = response.json()
-                items = data.get("body", {}).get("items", [])
-                return items if isinstance(items, list) else []
-    except Exception:
-        pass
-    return []
+async def search_dur_age_taboo(ingredient: str) -> list:
+    """특정연령대금기 조회."""
+    return await _dur_get("getSpcifyAgrdeTabooInfoList02", ingredient)
+
+
+async def search_dur_pregnancy_taboo(ingredient: str) -> list:
+    """임부금기 조회."""
+    return await _dur_get("getPwnmTabooInfoList02", ingredient)
+
+
+async def search_dur_capacity_caution(ingredient: str) -> list:
+    """용량주의 조회."""
+    return await _dur_get("getCpctyAtentInfoList02", ingredient)
+
+
+async def search_dur_period_caution(ingredient: str) -> list:
+    """투여기간주의 조회."""
+    return await _dur_get("getMdctnPdAtentInfoList02", ingredient)
 
 
 async def search_dur_duplicate(ingredient: str) -> list:
-    """효능군중복주의 조회"""
-    if not DUR_API_KEY:
-        return []
-
-    url = f"{DUR_API_BASE}/getEfcyDplctInfoList03"
-    params = {
-        "serviceKey": DUR_API_KEY,
-        "typeName": "효능군중복",
-        "itemName": ingredient,
-        "type": "json",
-        "numOfRows": 20,
-        "pageNo": 1,
-    }
-
-    try:
-        async with httpx.AsyncClient(timeout=10) as client:
-            response = await client.get(url, params=params)
-            if response.status_code == 200:
-                data = response.json()
-                items = data.get("body", {}).get("items", [])
-                return items if isinstance(items, list) else []
-    except Exception:
-        pass
-    return []
+    """효능군중복 조회."""
+    return await _dur_get("getEfcyDplctInfoList02", ingredient)
 
 
 async def search_drug_info(drug_name: str) -> Optional[dict]:
     """의약품 기본 정보 조회 (e약은요 API)"""
-    if not DUR_API_KEY:
+    if not DRUG_EASY_API_KEY:
         return None
 
-    url = "http://apis.data.go.kr/1471000/DrbEasyDrugInfoService/getDrbEasyDrugList"
+    url = "https://apis.data.go.kr/1471000/DrbEasyDrugInfoService/getDrbEasyDrugList"
     params = {
-        "serviceKey": DUR_API_KEY,
+        "serviceKey": DRUG_EASY_API_KEY,
         "itemName": drug_name,
         "type": "json",
         "numOfRows": 1,

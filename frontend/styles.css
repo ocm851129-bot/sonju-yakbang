@@ -672,6 +672,8 @@ body {
     :root {
         --bg: #1A2E23; --card-bg: #243B2E; --text-primary: #F0F7F4;
         --text-secondary: #A8D5BA; --border: #2D4A38;
+        --text-light: #9FB8AB;      /* 어두운 배경에서 안내문/부가설명 가독성 확보 */
+        --primary-dark: #8FD9A5;    /* 카드 제목(💓 나의 질환 정보, 🍊 식단팁 등)을 밝은 민트로 */
     }
     .app-header { background: #1A2E23; border-color: #2D4A38; }
     .chat-text-input { background: #2D4A38; color: #F0F7F4; }
@@ -1636,4 +1638,140 @@ html.ios .app-main {
     background: #FFEBEE;
     color: #C62828;
     border: 1px solid #EF9A9A;
+}
+
+/* ==================== 다크 모드 가독성 보정 (파일 맨 끝: 소스 순서로 확실히 우선) ====================
+   밝은 배경을 전제로 작성된 요소들이 다크 모드에서 글씨가 밝게 뒤집혀 안 보이던 문제를 바로잡는다.
+   기본 규칙과 명시도가 같으므로, 반드시 그 규칙들보다 뒤(파일 끝)에 위치해야 우선 적용된다. */
+@media (prefers-color-scheme: dark) {
+    /* 건강정보 4분할 카드: 밝은 파스텔 배경 고정 → 글씨를 진하게 */
+    .health-info-card .card-title { color: #1B3A2A; }
+    .health-info-card .card-desc { color: #3F5A4C; }
+
+    /* 밝은 배경 위 텍스트 블록 → 어두운 배경 + 밝은 글씨 */
+    .meal-suggestion { background: #2E4B39; color: var(--text-primary); }   /* 🍽️ 식단 제안 */
+    .caution-item { background: #3A331C; color: var(--text-primary); }
+    .caution-item li { color: var(--text-primary); }
+
+    /* 어두운 글씨(#5D4037)가 어두운 배경에 묻히던 문구 → 밝은 색 */
+    .mood-msg { color: #FFD9A8; }               /* 심신안정에 좋은 노래 문구 */
+    .avoid-note { color: #FF8A80; }             /* ⚠️ 피할 음식 */
+    .caution-text { color: #FFC061; }           /* 영양제 주의 문구 */
+
+    /* DUR 경고 카드(밝은 배경 전제) → 어두운 배경으로 */
+    .dur-alert.high { background: #3A2626; }
+    .dur-alert.medium { background: #3A331C; }
+    .dur-alert.low { background: #22303A; }
+
+    /* 홈 "복용 중인 약" 카드: 밝은 배경(.done #E8F5E9 / .pending #FFF8E1 / .upcoming #F5F5F5)을
+       가진 항목만 글씨를 진하게. (색 미지정 .med-name은 기본 --text-primary라 밝은 배경에서 안 보였음)
+       배경이 어두운 일반 .med-item(예: OCR 결과 목록)은 제외해야 흰 글씨가 유지됨. */
+    .med-item.done .med-name, .med-item.pending .med-name, .med-item.upcoming .med-name { color: #1B3A2A; }
+    .med-item.done .med-time, .med-item.pending .med-time, .med-item.upcoming .med-time { color: #3F5A4C; }
+    .med-item.done .med-status, .med-item.pending .med-status, .med-item.upcoming .med-status { color: #5A6B60; }
+
+    /* 의약품 정보 화면 하단 퀵 액션 버튼: 밝은 초록 배경(#E8F5E9) 고정 → 글씨 진하게
+       (처방전 촬영하기 / 병용금기 확인 / 주의사항 보기 / 건강기능식품 추천) */
+    .med-quick-btn .quick-label { color: #1B3A2A; }
+}
+
+/* ==================== 식약처 의약품 허가정보 카드 ==================== */
+.drug-search-box {
+    margin-top: 24px;
+    padding: 20px;
+    background: var(--card-bg);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+}
+.drug-search-box h3 { margin-bottom: 6px; color: var(--primary-dark); }
+.drug-search-row { display: flex; gap: 8px; margin-top: 12px; }
+.drug-search-input {
+    flex: 1;
+    padding: 14px 16px;
+    font-size: 18px;
+    border: 2px solid var(--border);
+    border-radius: var(--radius-sm);
+    outline: none;
+}
+.drug-search-input:focus { border-color: var(--primary); }
+.btn-drug-search {
+    padding: 0 22px;
+    font-size: 18px;
+    font-weight: 700;
+    color: #fff;
+    background: var(--primary);
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+}
+.btn-drug-search:active { background: var(--primary-dark); }
+
+.btn-drug-detail {
+    width: 100%;
+    margin: 6px 0 14px;
+    padding: 12px;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--primary-dark);
+    background: var(--border);
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+}
+.btn-drug-detail:active { background: #d7ecda; }
+
+.drug-info-card {
+    margin: 10px 0 16px;
+    padding: 18px;
+    background: var(--bg-warm);
+    border: 2px solid var(--border);
+    border-radius: var(--radius);
+}
+.drug-card-title {
+    font-size: 20px;
+    font-weight: 800;
+    color: var(--text-primary);
+    margin-bottom: 10px;
+}
+.drug-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.drug-tag {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--primary-dark);
+    background: #E8F5E9;
+    padding: 4px 12px;
+    border-radius: 999px;
+}
+.drug-tag-plain { color: var(--text-secondary); background: #EEE; }
+.drug-pill-img {
+    display: block;
+    max-width: 160px;
+    width: 100%;
+    border-radius: var(--radius-sm);
+    margin: 0 auto 14px;
+}
+.drug-info-row {
+    display: flex;
+    gap: 10px;
+    padding: 10px 0;
+    border-top: 1px solid var(--border);
+}
+.drug-info-row:first-of-type { border-top: none; }
+.drug-info-label {
+    flex: 0 0 96px;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--primary-dark);
+}
+.drug-info-val {
+    flex: 1;
+    font-size: 16px;
+    line-height: 1.5;
+    color: var(--text-primary);
+    white-space: pre-line;
+}
+.drug-demo-note, .drug-source-line {
+    margin-top: 10px;
+    font-size: 13px;
+    color: var(--text-secondary);
 }
