@@ -136,37 +136,115 @@ async function handleImage(event) {
     const resultDiv = document.getElementById('ocr-result');
     const medsDiv = document.getElementById('ocr-medications');
     resultDiv.style.display = 'block';
-    medsDiv.innerHTML = '<p>처방전을 분석하고 있습니다...</p>';
+    medsDiv.innerHTML = '<p>💊 처방전을 분석하고 있습니다...</p>';
 
+    // 1) 백엔드(식약처 API) 우선 시도 — 서버가 있으면 가장 정확
     try {
         const formData = new FormData();
         formData.append('image', file);
-
         const response = await fetch(`${API_BASE}/ocr/prescription?user_id=${currentUser?.id || 1}`, {
             method: 'POST',
             body: formData,
         });
-
         if (response.ok) {
             const data = await response.json();
-            renderOCRResult(data);
-        } else {
-            medsDiv.innerHTML = '<p>인식에 실패했습니다. 다시 촬영해 주세요.</p>';
+            if (data && (data.medications || []).length > 0) {
+                saveRecognizedMeds(data.medications);
+                renderOCRResult(data);
+                return;
+            }
         }
     } catch (err) {
-        // 데모 모드
-        renderOCRResult({
-            hospital: '서울내과의원',
-            diagnosis: '본태성 고혈압',
-            date: '2026-06-10',
-            medications: [
-                { name: '아모디핀정 5mg', ingredient: '암로디핀', dosage: '1정', frequency: '1일 1회 아침 식후', category: 'prescription' },
-                { name: '메트포르민정 500mg', ingredient: '메트포르민', dosage: '1정', frequency: '1일 2회 식후', category: 'prescription' },
-                { name: '아토르바스타틴정 20mg', ingredient: '아토르바스타틴', dosage: '1정', frequency: '1일 1회 취침 전', category: 'prescription' },
-            ],
-            confidence: 0.92,
-        });
+        /* 백엔드 불가 → 아래 기기 내 OCR로 진행 */
     }
+
+    // 2) 백엔드 불가/실패 시 → 기기 내(오프라인) OCR 실행
+    await clientSideOCR(file, medsDiv);
+}
+
+/** 브라우저에서 Tesseract.js로 이미지 글자를 직접 인식하고, 로컬 DB로 약을 찾는다. */
+async function clientSideOCR(file, medsDiv) {
+    if (typeof Tesseract === 'undefined') {
+        // OCR 엔진 로드 실패 → 데모 데이터로 대체
+        renderOCRDemo(medsDiv, '기기 내 OCR 엔진을 불러오지 못했습니다. 예시 결과를 표시합니다.');
+        return;
+    }
+    try {
+        medsDiv.innerHTML = '<p>📷 사진에서 글자를 읽고 있습니다...</p>' +
+            '<div class="ocr-progress"><div class="ocr-progress-bar" id="ocr-progress-bar"></div></div>' +
+            '<p class="sub-text" id="ocr-progress-text">잠시만 기다려 주세요 (최초 1회는 조금 오래 걸립니다)</p>';
+
+        const { data } = await Tesseract.recognize(file, 'kor+eng', {
+            logger: (m) => {
+                if (m.status === 'recognizing text') {
+                    const pct = Math.round((m.progress || 0) * 100);
+                    const bar = document.getElementById('ocr-progress-bar');
+                    const txt = document.getElementById('ocr-progress-text');
+                    if (bar) bar.style.width = pct + '%';
+                    if (txt) txt.textContent = `글자 인식 중... ${pct}%`;
+                }
+            },
+        });
+
+        const rawText = (data && data.text) ? data.text : '';
+        const meds = findDrugsInText(rawText);
+
+        if (meds.length > 0) {
+            saveRecognizedMeds(meds);
+            renderOCRResult({
+                medications: meds,
+                raw_text: rawText,
+                confidence: (data.confidence || 0) / 100,
+                drug_info_source: '기기 내 OCR + 기기 내 의약품 DB(오프라인)',
+                ocr_engine: 'on-device',
+            });
+        } else {
+            // 글자는 읽었지만 아는 약을 못 찾음 → 인식 텍스트 + 수동 검색 안내
+            renderOCRNoMatch(medsDiv, rawText);
+        }
+    } catch (err) {
+        renderOCRDemo(medsDiv, '사진 인식에 실패했습니다. 예시 결과를 표시합니다.');
+    }
+}
+
+/** OCR로 인식/추가된 약을 localStorage에 저장 (오프라인 DUR 검사에 사용) */
+function saveRecognizedMeds(medications) {
+    try {
+        const existing = JSON.parse(localStorage.getItem('my_medications') || '[]');
+        const names = new Set(existing.map((m) => m.name));
+        for (const m of medications) {
+            if (m.name && !names.has(m.name)) {
+                existing.push({ name: m.name, ingredient: m.ingredient || '', category: m.category || 'prescription' });
+                names.add(m.name);
+            }
+        }
+        localStorage.setItem('my_medications', JSON.stringify(existing));
+    } catch (e) { /* ignore */ }
+}
+
+function renderOCRNoMatch(medsDiv, rawText) {
+    const preview = escapeHtml((rawText || '').trim().slice(0, 300)) || '(글자를 인식하지 못했습니다)';
+    medsDiv.innerHTML = `
+        <p>사진에서 아래 글자를 읽었지만, 등록된 약 정보를 찾지 못했어요.</p>
+        <div class="ocr-rawtext">${preview}</div>
+        <p class="sub-text" style="margin-top:12px;">아래 <strong>‘약 이름으로 정보 찾기’</strong>에 약 이름을 입력해 검색해 주세요.</p>`;
+}
+
+function renderOCRDemo(medsDiv, notice) {
+    const demo = {
+        hospital: '서울내과의원', diagnosis: '본태성 고혈압', date: '2026-06-10',
+        medications: [
+            { name: '아모디핀정 5mg', ingredient: '암로디핀', dosage: '1정', frequency: '1일 1회 아침 식후', category: 'prescription' },
+            { name: '메트포르민정 500mg', ingredient: '메트포르민', dosage: '1정', frequency: '1일 2회 식후', category: 'prescription' },
+            { name: '아토르바스타틴정 20mg', ingredient: '아토르바스타틴', dosage: '1정', frequency: '1일 1회 취침 전', category: 'prescription' },
+        ],
+        confidence: 0.92,
+        drug_info_source: '기기 내 의약품 DB(오프라인)',
+    };
+    demo.medications.forEach((m) => enrichWithLocalDrug(m));
+    saveRecognizedMeds(demo.medications);
+    if (notice) medsDiv.innerHTML = `<p class="sub-text">${escapeHtml(notice)}</p>`;
+    renderOCRResult(demo);
 }
 
 function escapeHtml(s) {
@@ -225,6 +303,8 @@ function renderOCRResult(data) {
     html += '<hr style="margin:12px 0;">';
 
     (data.medications || []).forEach((med, idx) => {
+        // permit 정보가 없으면 기기 내 의약품 DB로 보강
+        if (!med.permit && typeof enrichWithLocalDrug === 'function') enrichWithLocalDrug(med);
         const hasPermit = med.permit && (med.permit.easy_effect || med.permit.effect || med.permit.easy_caution || med.permit.caution);
         html += `
             <div class="med-item" style="border-color: var(--primary);">
@@ -267,18 +347,29 @@ async function searchDrug() {
         return;
     }
     resultDiv.innerHTML = '<p class="sub-text">약품 정보를 찾고 있습니다...</p>';
+
+    // 1) 백엔드(식약처 API) 시도
     try {
         const response = await fetch(`${API_BASE}/drug-info/search?name=${encodeURIComponent(name)}`);
-        if (!response.ok) throw new Error('lookup failed');
-        const info = await response.json();
-        if (!info.matched) {
-            resultDiv.innerHTML = `<p class="sub-text">'${escapeHtml(name)}'에 대한 허가정보를 찾지 못했습니다. 약 이름을 정확히 입력해 주세요.</p>`;
-            return;
+        if (response.ok) {
+            const info = await response.json();
+            if (info && info.matched) {
+                resultDiv.innerHTML = renderDrugInfoCard(info, { showTitle: true });
+                if (info.easy_effect || info.effect) speak(`${info.item_name}. ${info.easy_effect || info.effect}`);
+                return;
+            }
         }
-        resultDiv.innerHTML = renderDrugInfoCard(info, { showTitle: true });
-        if (info.easy_effect || info.effect) speak(`${info.item_name}. ${info.easy_effect || info.effect}`);
     } catch (err) {
-        resultDiv.innerHTML = '<p class="sub-text">지금은 약품 정보를 불러올 수 없습니다. 잠시 후 다시 시도해 주세요.</p>';
+        /* 백엔드 불가 → 기기 내 DB로 폴백 */
+    }
+
+    // 2) 기기 내(오프라인) 의약품 DB 폴백
+    const local = (typeof lookupLocalDrug === 'function') ? lookupLocalDrug(name) : null;
+    if (local) {
+        resultDiv.innerHTML = renderDrugInfoCard(local, { showTitle: true });
+        speak(`${local.item_name}. ${local.easy_effect}`);
+    } else {
+        resultDiv.innerHTML = `<p class="sub-text">'${escapeHtml(name)}'에 대한 정보를 찾지 못했습니다. 약 이름을 정확히 입력해 주세요.<br>(예: 아모디핀, 메트포르민, 타이레놀)</p>`;
     }
 }
 
@@ -287,65 +378,76 @@ async function searchDrug() {
 async function runDURCheck() {
     const resultDiv = document.getElementById('dur-result');
     resultDiv.style.display = 'block';
-    resultDiv.innerHTML = '<p>약물 안전성을 검사하고 있습니다...</p>';
+    resultDiv.innerHTML = '<p>🔍 약물 안전성을 검사하고 있습니다...</p>';
 
-    // 오프라인인 경우 Edge AI로 로컬 분석
-    if (isOffline()) {
-        const localMeds = JSON.parse(localStorage.getItem('my_medications') || '[]');
-        if (localMeds.length > 0) {
-            const result = offlineDURCheck(localMeds);
-            result.summary = '📡 오프라인 모드: ' + result.summary;
-            renderDURResult(result);
-            speak(result.summary);
-        } else {
-            resultDiv.innerHTML = '<p>오프라인 상태입니다. 등록된 약 정보가 없어 검사할 수 없습니다.</p>';
-        }
-        return;
+    // 검사 대상 약 목록 확보: localStorage(내 약) → 없으면 데모 기본값
+    let localMeds = [];
+    try { localMeds = JSON.parse(localStorage.getItem('my_medications') || '[]'); } catch (e) { localMeds = []; }
+    if (!Array.isArray(localMeds) || localMeds.length === 0) {
+        localMeds = [
+            { name: '메트포르민정 500mg', ingredient: '메트포르민', category: 'prescription' },
+            { name: '심바스타틴정 20mg', ingredient: '심바스타틴', category: 'prescription' },
+            { name: '아스피린정 100mg', ingredient: '아스피린', category: 'otc' },
+        ];
     }
 
-    try {
-        const response = await fetch(`${API_BASE}/dur/analyze/${currentUser?.id || 1}`);
-        if (response.ok) {
-            const data = await response.json();
-            renderDURResult(data);
+    // 1) 온라인 & 백엔드 가능하면 서버 DUR 분석
+    if (!isOffline()) {
+        try {
+            const response = await fetch(`${API_BASE}/dur/analyze/${currentUser?.id || 1}`);
+            if (response.ok) {
+                const data = await response.json();
+                if (data && Array.isArray(data.alerts)) {
+                    renderDURResult(data);
+                    speak(data.summary || '검사가 완료되었습니다.');
+                    return;
+                }
+            }
+        } catch (err) {
+            /* 백엔드 불가 → 기기 내 엔진으로 폴백 */
         }
-    } catch (err) {
-        // 데모 모드
-        renderDURResult({
-            alerts: [
-                {
-                    severity: 'medium',
-                    medication_a: '아토르바스타틴정',
-                    medication_b: '자몽주스',
-                    description: '자몽이 약물 대사를 방해하여 부작용 위험이 증가합니다',
-                    recommendation: '자몽 섭취를 피하세요',
-                },
-            ],
-            total_risk_score: 15,
-            summary: '주의가 필요한 약물 조합이 1건 발견되었습니다.',
-            recommendation: '다음 병원 방문 시 담당 의사에게 말씀해 주세요.',
-        });
     }
+
+    // 2) 기기 내(오프라인) DUR 엔진으로 분석 — 항상 결과를 렌더링
+    const result = offlineDURCheck(localMeds);
+    result.summary = (isOffline() ? '📡 오프라인 검사: ' : '') + (result.summary || '검사를 완료했습니다.');
+    renderDURResult(result);
+    speak(result.summary);
 }
 
 function renderDURResult(data) {
     const resultDiv = document.getElementById('dur-result');
-    let html = `<h3 style="margin-bottom:12px;">🔍 검사 결과</h3>`;
-    html += `<p style="font-size:18px;margin-bottom:16px;"><strong>${data.summary}</strong></p>`;
+    data = data || {};
+    const alerts = Array.isArray(data.alerts) ? data.alerts : [];
+    const summary = data.summary || (alerts.length === 0
+        ? '복용 중인 약 사이에 특별한 문제가 발견되지 않았습니다.'
+        : `주의가 필요한 약물 조합이 ${alerts.length}건 있습니다.`);
 
-    if (data.alerts?.length === 0) {
+    let html = `<h3 style="margin-bottom:12px;">🔍 검사 결과</h3>`;
+    html += `<p style="font-size:18px;margin-bottom:16px;"><strong>${escapeHtml(summary)}</strong></p>`;
+
+    if (alerts.length === 0) {
         html += '<div class="dur-alert low"><p class="dur-alert-title">✅ 안전합니다</p><p>현재 복용 중인 약 사이에 문제가 없습니다.</p></div>';
     } else {
-        for (const alert of data.alerts || []) {
+        for (const alert of alerts) {
+            const sev = alert.severity || 'medium';
+            const a = escapeHtml(alert.medication_a || '');
+            const b = escapeHtml(alert.medication_b || '');
+            const pair = b ? `${a} + ${b}` : a;
+            const desc = escapeHtml(alert.description || '');
+            const rec = escapeHtml(alert.recommendation || '의사 또는 약사와 상담하세요.');
             html += `
-                <div class="dur-alert ${alert.severity}">
-                    <p class="dur-alert-title">${alert.severity === 'high' ? '🚨' : '⚠️'} ${alert.medication_a} + ${alert.medication_b}</p>
-                    <p class="dur-alert-desc">${alert.description}</p>
-                    <p class="dur-alert-rec">💡 ${alert.recommendation}</p>
+                <div class="dur-alert ${sev}">
+                    <p class="dur-alert-title">${sev === 'high' ? '🚨' : '⚠️'} ${pair}</p>
+                    ${desc ? `<p class="dur-alert-desc">${desc}</p>` : ''}
+                    <p class="dur-alert-rec">💡 ${rec}</p>
                 </div>`;
         }
     }
 
+    if (data.data_source) {
+        html += `<p class="drug-source-line">ℹ️ 분석 출처: ${escapeHtml(data.data_source)}</p>`;
+    }
     html += `<p style="margin-top:12px;font-size:14px;color:var(--text-secondary);">※ 이 정보는 참고용이며, 정확한 판단은 약사 또는 의사와 상담하세요.</p>`;
     resultDiv.innerHTML = html;
 }
