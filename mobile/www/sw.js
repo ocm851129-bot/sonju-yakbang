@@ -3,13 +3,14 @@
  * PWA 오프라인 지원 + 캐싱 + 푸시 알림
  */
 
-const CACHE_NAME = 'sonju-yakbang-v2';
+const CACHE_NAME = 'sonju-yakbang-v7';
 const STATIC_ASSETS = [
     '/',
     '/index.html',
     '/styles.css',
     '/config.js',
     '/offline-dur.js',
+    '/drug-data.js',
     '/app.js',
     '/manifest.json',
 ];
@@ -18,7 +19,11 @@ const STATIC_ASSETS = [
 self.addEventListener('install', (event) => {
     event.waitUntil(
         caches.open(CACHE_NAME).then((cache) => {
-            return cache.addAll(STATIC_ASSETS);
+            // cache: 'reload' 로 브라우저 HTTP 캐시를 우회해 항상 최신 파일을 받아 캐싱한다.
+            // (이렇게 하지 않으면 CSS/JS를 수정해도 옛 파일이 캐시되어 변경이 반영되지 않음)
+            return cache.addAll(
+                STATIC_ASSETS.map((url) => new Request(url, { cache: 'reload' }))
+            );
         })
     );
     self.skipWaiting();

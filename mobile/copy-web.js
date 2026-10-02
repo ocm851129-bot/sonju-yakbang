@@ -10,7 +10,8 @@ const SRC = path.join(__dirname, '..', 'frontend');
 const DST = path.join(__dirname, 'www');
 const ASSETS = [
   'index.html', 'styles.css', 'app.js', 'config.js', 'offline-dur.js',
-  'sw.js', 'manifest.json', 'character.svg', 'icon-192.png', 'icon-512.png',
+  'drug-data.js', 'sw.js', 'manifest.json', 'character.svg',
+  'icon-192.png', 'icon-512.png',
 ];
 
 fs.mkdirSync(DST, { recursive: true });
