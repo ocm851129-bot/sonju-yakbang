@@ -1,11 +1,21 @@
 # 손주약방 백엔드 - Render.com 배포 Blueprint
 # https://render.com/docs/blueprint-spec
 # Render 대시보드에서 "New +" → "Blueprint" → 이 저장소 선택 시 자동 인식됩니다.
+# 웹 서비스 + PostgreSQL(영속 DB)을 함께 생성하고 DATABASE_URL 을 자동 주입합니다.
+
+databases:
+  - name: sonju-yakbang-db
+    plan: free
+    databaseName: sonju_yakbang
+    user: sonju
+    region: singapore
+
 services:
   - type: web
     name: sonju-yakbang-api
     runtime: python
     plan: free
+    region: singapore
     rootDir: backend
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
@@ -15,8 +25,11 @@ services:
         value: 3.12.7
       - key: SECRET_KEY
         generateValue: true
+      # PostgreSQL 연결문자열을 Render 가 자동 주입 (영속 데이터 저장)
       - key: DATABASE_URL
-        value: sqlite:///./sonju_yakbang.db
+        fromDatabase:
+          name: sonju-yakbang-db
+          property: connectionString
       # OPENAI_API_KEY 는 대시보드에서 직접 입력하세요 (없어도 규칙기반 데모로 동작)
       - key: OPENAI_API_KEY
         sync: false
