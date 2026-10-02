@@ -32,6 +32,10 @@ jobs:
           java-version: '17'
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          # 기본값(tools platform-tools)의 레거시 'tools' 패키지가 제거되어
+          # sdkmanager 가 exit 1 로 실패하므로 platform-tools 만 설치한다.
+          packages: 'platform-tools'
       - name: Install SDK packages
         run: sdkmanager "platforms;android-34" "build-tools;34.0.0"
       - name: Install JS deps & sync web
