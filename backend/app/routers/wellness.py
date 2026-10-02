@@ -9,7 +9,7 @@ from app.config import OPENAI_API_KEY
 import json
 
 router = APIRouter()
-client = OpenAI(api_key=OPENAI_API_KEY)
+client = OpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
 
 
 @router.get("/disease-info/{user_id}")

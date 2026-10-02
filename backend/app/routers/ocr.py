@@ -14,7 +14,7 @@ import json
 import httpx
 
 router = APIRouter()
-client = OpenAI(api_key=OPENAI_API_KEY)
+client = OpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
 
 
 class OCRResult(BaseModel):

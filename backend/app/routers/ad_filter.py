@@ -15,7 +15,7 @@ import json
 import httpx
 
 router = APIRouter()
-client = OpenAI(api_key=OPENAI_API_KEY)
+client = OpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
 
 # 식약처 기준 건강기능식품 금지 표현 (허위·과대광고 판단 기준)
 PROHIBITED_CLAIMS = [

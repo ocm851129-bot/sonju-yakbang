@@ -9,7 +9,7 @@ from app.config import OPENAI_API_KEY
 from app.rag_engine import get_rag_context
 
 router = APIRouter()
-client = OpenAI(api_key=OPENAI_API_KEY)
+client = OpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
 
 SYSTEM_PROMPT = """당신은 '손주약방'의 AI 건강 도우미입니다. 어르신의 건강 관리를 돕는 친근한 손주 역할을 합니다.
 

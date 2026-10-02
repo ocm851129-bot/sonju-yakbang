@@ -20,7 +20,7 @@ from app.dur_database import (
 import json
 
 router = APIRouter()
-client = OpenAI(api_key=OPENAI_API_KEY)
+client = OpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
 
 
 class DURAnalysisResult(BaseModel):

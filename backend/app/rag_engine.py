@@ -13,7 +13,7 @@ from typing import List, Tuple
 import json
 import os
 
-client = OpenAI(api_key=OPENAI_API_KEY)
+client = OpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
 
 # ==================== 인메모리 벡터 스토어 (MVP용) ====================
 # 프로덕션에서는 ChromaDB, Pinecone, Milvus 등으로 교체

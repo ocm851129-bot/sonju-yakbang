@@ -10,7 +10,7 @@ from app.config import OPENAI_API_KEY
 import json
 
 router = APIRouter()
-client = OpenAI(api_key=OPENAI_API_KEY)
+client = OpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
 
 # 캐릭터 프리셋 (성별·성격 기반)
 CHARACTER_PRESETS = {
