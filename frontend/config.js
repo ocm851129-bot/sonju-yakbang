@@ -10,7 +10,7 @@
 
   // ▼▼▼ 백엔드 배포 후 이 값을 실제 백엔드 URL 로 교체하세요 (끝에 슬래시 없이) ▼▼▼
   //   예) 'https://sonju-yakbang-api.onrender.com'
-  var PROD_API_ORIGIN = 'https://sonju-yakbang-api.onrender.com';
+  var PROD_API_ORIGIN = 'https://sonju-yakbang-api-m2hb.onrender.com';
   // ▲▲▲ Vercel 환경변수를 쓰지 않고 정적 값으로 관리합니다 ▲▲▲
 
   // Capacitor 네이티브 앱(Android/iOS)은 앱 내부를 https://localhost 스킴으로
