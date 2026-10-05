@@ -39,5 +39,5 @@ DUR_API_BASE = "https://apis.data.go.kr/1471000/DURIrdntInfoService03"
 #      https://www.data.go.kr/data/15075057/openapi.do
 DRUG_PERMIT_API_KEY = os.getenv("DRUG_PERMIT_API_KEY", "") or DATA_GO_KR_API_KEY
 DRUG_EASY_API_KEY = os.getenv("DRUG_EASY_API_KEY", "") or DATA_GO_KR_API_KEY
-DRUG_PERMIT_API_BASE = "https://apis.data.go.kr/1471000/DrugPrdtPrmsnInfoService06"
+DRUG_PERMIT_API_BASE = "https://apis.data.go.kr/1471000/DrugPrdtPrmsnInfoService08"
 DRUG_EASY_API_BASE = "https://apis.data.go.kr/1471000/DrbEasyDrugInfoService"

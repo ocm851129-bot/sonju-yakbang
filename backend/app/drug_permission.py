@@ -2,7 +2,7 @@
 
 두 개의 공공데이터포털(data.go.kr) 공개 API를 조합하여 약품 정보를 제공합니다.
 
-  1) 의약품 제품 허가정보 (DrugPrdtPrmsnInfoService06)
+  1) 의약품 제품 허가정보 (DrugPrdtPrmsnInfoService08)
      - 품목명/업체명/전문·일반 구분/성분/효능효과/용법용량/주의사항/저장방법/유효기간
      - 허가받은 '공식' 정보 (요청하신 API)
   2) 의약품개요정보 e약은요 (DrbEasyDrugInfoService)
@@ -92,7 +92,7 @@ async def search_drug_permission(item_name: str) -> Optional[dict]:
     if not DRUG_PERMIT_API_KEY or not item_name:
         return None
 
-    url = f"{DRUG_PERMIT_API_BASE}/getDrugPrdtPrmsnDtlInq05"
+    url = f"{DRUG_PERMIT_API_BASE}/getDrugPrdtPrmsnDtlInq08"
     params = {
         "serviceKey": DRUG_PERMIT_API_KEY,
         "item_name": item_name,
