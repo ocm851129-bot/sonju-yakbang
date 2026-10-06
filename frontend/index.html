@@ -174,18 +174,23 @@
             <section id="ocr-screen" class="screen">
                 <div class="screen-header">
                     <button class="btn-back" onclick="navigate('home')">← 뒤로</button>
-                    <h2>📷 처방전 찍기</h2>
+                    <h2>📷 처방전·영양제 찍기</h2>
                 </div>
                 <div class="ocr-container">
                     <div class="ocr-instruction">
-                        <p class="big-text">처방전을 카메라로<br>찍어주세요</p>
-                        <p class="sub-text">밝은 곳에서 글자가 잘 보이게 찍어주세요</p>
+                        <p class="big-text">처방전이나 영양제를<br>카메라로 찍어주세요</p>
+                        <p class="sub-text">처방전·약 봉투는 물론 건강기능식품(영양제)도 인식해요</p>
                     </div>
                     <div class="camera-area">
                         <input type="file" id="camera-input" accept="image/*" capture="environment" onchange="handleImage(event)" style="display:none;">
                         <button class="btn-camera" onclick="document.getElementById('camera-input').click()">
                             <span class="camera-icon">📸</span>
-                            <span>사진 찍기</span>
+                            <span>처방전 찍기</span>
+                        </button>
+                        <input type="file" id="product-input" accept="image/*" capture="environment" onchange="handleProductScan(event)" style="display:none;">
+                        <button class="btn-camera" onclick="document.getElementById('product-input').click()" style="border-color: var(--safe); color: var(--safe);">
+                            <span class="camera-icon">🌿</span>
+                            <span>영양제·건강식품 찍기</span>
                         </button>
                     </div>
                     <div class="ocr-result" id="ocr-result" style="display:none;">

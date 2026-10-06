@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from app.database import get_db
 from app.models import Medication
 from app.drug_permission import get_drug_full_info
+from app.health_food import get_health_food_info
 
 router = APIRouter()
 
@@ -19,6 +20,7 @@ class DrugInfoResult(BaseModel):
     item_name: str
     company: str = ""
     category: str = "prescription"
+    product_type: str = "prescription"  # prescription | otc | health_functional_food
     etc_otc: str = ""
     class_name: str = ""
     ingredient: str = ""
@@ -35,21 +37,73 @@ class DrugInfoResult(BaseModel):
     easy_interaction: str = ""
     easy_side_effect: str = ""
     easy_storage: str = ""
+    # 건강기능식품 전용 필드
+    functional_content: str = ""
+    intake_method: str = ""
+    raw_material: str = ""
     image_url: str = ""
     sources: list = []
     is_demo: bool = False
 
 
+def _health_food_to_result(info: dict, query: str) -> dict:
+    """건강기능식품 정보를 DrugInfoResult 스키마로 변환."""
+    fc = info.get("functional_content", "")
+    im = info.get("intake_method", "")
+    return {
+        "matched": info.get("matched", False),
+        "query": query,
+        "item_name": info.get("item_name", query),
+        "company": info.get("company", ""),
+        "category": "supplement",
+        "product_type": "health_functional_food",
+        "etc_otc": "건강기능식품",
+        "class_name": "건강기능식품",
+        "ingredient": info.get("raw_material", ""),
+        "effect": fc,
+        "usage": im,
+        "caution": info.get("caution", ""),
+        "easy_effect": fc,
+        "easy_usage": im,
+        "easy_caution": info.get("caution", ""),
+        "functional_content": fc,
+        "intake_method": im,
+        "raw_material": info.get("raw_material", ""),
+        "sources": info.get("sources", []),
+        "is_demo": info.get("is_demo", False),
+    }
+
+
 @router.get("/search", response_model=DrugInfoResult)
 async def search_drug(name: str, ingredient: str = ""):
-    """약품명으로 식약처 허가정보를 검색합니다.
+    """품목명으로 정보를 검색합니다. 의약품(식약처 허가정보)을 먼저 찾고,
+    없으면 건강기능식품(기능성 제품) 정보로 폴백합니다.
 
     예) /api/drug-info/search?name=아모디핀정 5mg
+        /api/drug-info/search?name=오메가3
     """
     if not name or not name.strip():
-        raise HTTPException(status_code=400, detail="약품명을 입력해주세요")
+        raise HTTPException(status_code=400, detail="제품명을 입력해주세요")
     info = await get_drug_full_info(name, ingredient)
+    if info.get("matched"):
+        return DrugInfoResult(**info)
+    # 의약품에서 못 찾으면 건강기능식품으로 폴백
+    hf = await get_health_food_info(name)
+    if hf.get("matched"):
+        return DrugInfoResult(**_health_food_to_result(hf, name))
     return DrugInfoResult(**info)
+
+
+@router.get("/health-food/search", response_model=DrugInfoResult)
+async def search_health_food(name: str):
+    """건강기능식품(기능성 제품) 전용 검색.
+
+    예) /api/drug-info/health-food/search?name=프로바이오틱스
+    """
+    if not name or not name.strip():
+        raise HTTPException(status_code=400, detail="제품명을 입력해주세요")
+    hf = await get_health_food_info(name)
+    return DrugInfoResult(**_health_food_to_result(hf, name))
 
 
 @router.get("/medication/{medication_id}", response_model=DrugInfoResult)

@@ -162,6 +162,41 @@ async function handleImage(event) {
     await clientSideOCR(file, medsDiv);
 }
 
+/** 영양제·건강기능식품(및 일반 제품) 통합 스캔.
+ *  백엔드가 품목을 자동 분류(의약품/건강기능식품)해 정보를 보강한다. */
+async function handleProductScan(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const resultDiv = document.getElementById('ocr-result');
+    const medsDiv = document.getElementById('ocr-medications');
+    resultDiv.style.display = 'block';
+    medsDiv.innerHTML = '<p>🌿 제품을 분석하고 있습니다...</p>';
+
+    // 1) 백엔드(통합 스캔) 우선
+    try {
+        const formData = new FormData();
+        formData.append('image', file);
+        const response = await fetch(`${API_BASE}/ocr/product?user_id=${currentUser?.id || 1}`, {
+            method: 'POST',
+            body: formData,
+        });
+        if (response.ok) {
+            const data = await response.json();
+            if (data && (data.medications || []).length > 0) {
+                saveRecognizedMeds(data.medications);
+                renderOCRResult(data);
+                return;
+            }
+        }
+    } catch (err) {
+        /* 백엔드 불가 → 아래 기기 내 OCR */
+    }
+
+    // 2) 백엔드 불가/실패 시 → 기기 내(오프라인) OCR (의약품+건강기능식품 DB)
+    await clientSideOCR(file, medsDiv);
+}
+
 /** 브라우저에서 Tesseract.js로 이미지 글자를 직접 인식하고, 로컬 DB로 약을 찾는다. */
 async function clientSideOCR(file, medsDiv) {
     if (typeof Tesseract === 'undefined') {
@@ -313,8 +348,11 @@ function renderOCRResult(data) {
             </div>`;
         if (hasPermit) {
             const merged = Object.assign({ item_name: med.name, ingredient: med.ingredient, category: med.category }, med.permit);
+            const isSupp = med.category === 'supplement' || med.product_type === 'health_functional_food' || (med.permit && med.permit.kind === 'health_food');
+            const detailLabel = isSupp ? '🌿 이 영양제는 어떤 제품인가요?' : '📋 이 약은 어떤 약인가요?';
             html += `
-                <button class="btn-drug-detail" onclick="toggleDrugDetail(${idx})">📋 이 약은 어떤 약인가요?</button>
+                <button class="btn-drug-detail" onclick="toggleDrugDetail(${idx})">${detailLabel}</button>`;
+            html += `
                 <div class="drug-detail-wrap" id="drug-detail-${idx}" style="display:none;">
                     ${renderDrugInfoCard(merged, { showTitle: false })}
                 </div>`;

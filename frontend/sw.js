@@ -3,7 +3,7 @@
  * PWA 오프라인 지원 + 캐싱 + 푸시 알림
  */
 
-const CACHE_NAME = 'sonju-yakbang-v7';
+const CACHE_NAME = 'sonju-yakbang-v8';
 const STATIC_ASSETS = [
     '/',
     '/index.html',

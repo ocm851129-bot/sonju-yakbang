@@ -41,3 +41,12 @@ DRUG_PERMIT_API_KEY = os.getenv("DRUG_PERMIT_API_KEY", "") or DATA_GO_KR_API_KEY
 DRUG_EASY_API_KEY = os.getenv("DRUG_EASY_API_KEY", "") or DATA_GO_KR_API_KEY
 DRUG_PERMIT_API_BASE = "https://apis.data.go.kr/1471000/DrugPrdtPrmsnInfoService08"
 DRUG_EASY_API_BASE = "https://apis.data.go.kr/1471000/DrbEasyDrugInfoService"
+
+# 건강기능식품(기능성 제품) 품목정보 공공 API (동일 data.go.kr 인증키 사용)
+#   라이브 데이터를 쓰려면 data.go.kr 에서 "식품의약품안전처_건강기능식품 품목정보"
+#   서비스를 활용신청한 뒤, 아래 엔드포인트/파라미터가 실제 서비스와 맞는지 확인하세요.
+#   (미설정/미승인 시 라벨 OCR 값 + 로컬 데모 DB 로 자동 폴백 — health_food.py)
+HEALTH_FOOD_API_BASE = os.getenv(
+    "HEALTH_FOOD_API_BASE",
+    "https://apis.data.go.kr/1471000/HtfsInfoService03/getHtfsItem01",
+)
