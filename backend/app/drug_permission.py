@@ -26,6 +26,7 @@ from app.config import (
     DRUG_PERMIT_API_BASE,
     DRUG_EASY_API_BASE,
 )
+from app.drug_identification import search_identity_by_name
 
 
 # ==================== 공통 유틸 ====================
@@ -279,12 +280,15 @@ async def get_drug_full_info(item_name: str, ingredient: str = "") -> dict:
 
     permit = await search_drug_permission(query)
     easy = await search_easy_drug(query)
+    identity = await search_identity_by_name(query)
 
     if not permit and not easy:
         # 원본 이름 그대로 한 번 더 시도 (정제로 인해 놓친 경우)
         if query != item_name.strip():
             permit = await search_drug_permission(item_name.strip())
             easy = await search_easy_drug(item_name.strip())
+            if not identity:
+                identity = await search_identity_by_name(item_name.strip())
 
     result = {
         "matched": False,
@@ -309,6 +313,14 @@ async def get_drug_full_info(item_name: str, ingredient: str = "") -> dict:
         "easy_side_effect": "",
         "easy_storage": "",
         "image_url": "",
+        # 낱알식별 전용 필드 (생김새로 약을 식별)
+        "drug_shape": "",
+        "colors": [],
+        "print_front": "",
+        "print_back": "",
+        "line_front": "",
+        "line_back": "",
+        "size_long": "",
         "sources": [],
         "is_demo": False,
     }
@@ -334,6 +346,26 @@ async def get_drug_full_info(item_name: str, ingredient: str = "") -> dict:
         if not result["item_name"] and easy.get("item_name"):
             result["item_name"] = easy["item_name"]
         result["sources"].append(easy["source"])
+
+    if identity:
+        result["matched"] = True
+        # 생김새 상세 필드는 낱알식별이 가장 정확하므로 그대로 채운다
+        for k in ("drug_shape", "colors", "print_front", "print_back",
+                  "line_front", "line_back", "size_long"):
+            if identity.get(k):
+                result[k] = identity[k]
+        # 생김새/이미지는 허가정보·e약은요에 비어있을 때만 보강
+        if identity.get("appearance") and not result["appearance"]:
+            result["appearance"] = identity["appearance"]
+        if identity.get("image_url") and not result["image_url"]:
+            result["image_url"] = identity["image_url"]
+        if not result["class_name"] and identity.get("class_name"):
+            result["class_name"] = identity["class_name"]
+        if not result["company"] and identity.get("company"):
+            result["company"] = identity["company"]
+        if not result["item_name"] and identity.get("item_name"):
+            result["item_name"] = identity["item_name"]
+        result["sources"].append(identity["source"])
 
     # 폴백: 데모 데이터
     if not result["matched"]:

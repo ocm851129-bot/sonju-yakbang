@@ -8,19 +8,93 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
+from typing import Optional, List
 from openai import OpenAI
 from app.database import get_db
-from app.models import Medication, DURAlert
+from app.models import Medication, DURAlert, ChronicDisease
 from app.config import OPENAI_API_KEY, DUR_API_KEY
 from app.dur_database import (
     search_dur_contraindication,
     search_dur_elderly_caution,
     local_dur_check,
 )
+from app.interaction_engine import check_interaction
+from app.drug_permission import get_drug_full_info
 import json
 
 router = APIRouter()
 client = OpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
+
+
+# ==================== 병용 확인(새 제품 vs 기존약) 핵심 기능 ====================
+
+class ProductIn(BaseModel):
+    name: str
+    ingredients: List[str] = []
+    category: str = ""
+
+
+class InteractionCheckRequest(BaseModel):
+    new_product: ProductIn
+    current_medications: List[ProductIn] = []
+    conditions: List[str] = []
+    user_id: Optional[int] = None
+    resolve_ingredients: bool = True
+
+
+async def _resolve_ingredients(name: str, given: List[str]) -> List[str]:
+    """성분이 비어있으면 식약처 허가정보/e약은요로 성분 문자열을 보강한다.
+    classify()는 부분일치로 동작하므로 원문 성분 문자열 그대로 넣어도 분류가 잡힌다."""
+    ings = [i for i in (given or []) if i and i.strip()]
+    if ings:
+        return ings
+    try:
+        info = await get_drug_full_info(name, "")
+        if info.get("ingredient"):
+            return [info["ingredient"]]
+    except Exception:
+        pass
+    return []
+
+
+@router.post("/check-interaction")
+async def check_new_product_interaction(req: InteractionCheckRequest, db: Session = Depends(get_db)):
+    """'새로 드시려는 제품'을 기존 복용약과 비교해 병용 안전성을 확인한다.
+
+    - current_medications 를 주면 그대로 비교, 없고 user_id 가 있으면 DB의 복용약을 사용.
+    - conditions(만성질환)도 user_id 로 자동 보강.
+    - 반환: 3단계 위험도(danger/caution/info) + 각 건의 무엇/왜/어떻게 + 안전고지.
+    """
+    # 기존 복용약 확보
+    current = [{"name": m.name, "ingredients": m.ingredients} for m in req.current_medications]
+    conditions = list(req.conditions)
+    if not current and req.user_id:
+        meds = db.query(Medication).filter(
+            Medication.user_id == req.user_id, Medication.is_active == True
+        ).all()
+        current = [{"name": m.name, "ingredients": [m.ingredient] if m.ingredient else []} for m in meds]
+    if not conditions and req.user_id:
+        diseases = db.query(ChronicDisease).filter(ChronicDisease.user_id == req.user_id).all()
+        conditions = [d.disease_name for d in diseases if d.disease_name]
+
+    # 성분 보강
+    if req.resolve_ingredients:
+        new_ings = await _resolve_ingredients(req.new_product.name, req.new_product.ingredients)
+        resolved_current = []
+        for c in current:
+            ci = c["ingredients"] if c["ingredients"] else await _resolve_ingredients(c["name"], [])
+            resolved_current.append({"name": c["name"], "ingredients": ci})
+        current = resolved_current
+    else:
+        new_ings = req.new_product.ingredients
+
+    result = check_interaction(
+        new_product={"name": req.new_product.name, "ingredients": new_ings,
+                     "category": req.new_product.category},
+        current_medications=current,
+        conditions=conditions,
+    )
+    return result
 
 
 class DURAnalysisResult(BaseModel):

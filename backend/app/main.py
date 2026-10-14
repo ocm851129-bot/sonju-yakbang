@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.database import engine, Base, SessionLocal
-from app.routers import auth, voice, ocr, medications, chat, dur, health, guardian, ad_filter, character, wearable, digital_twin, wellness, drug_info
+from app.routers import auth, voice, ocr, medications, chat, dur, health, guardian, ad_filter, character, wearable, digital_twin, wellness, drug_info, rag_admin
 from app.fhir import to_fhir_patient, to_fhir_medication_statement, to_fhir_observation, to_fhir_bundle
 from app.agent_scheduler import init_scheduler
 from app.rag_engine import initialize_knowledge_base
@@ -39,6 +39,7 @@ app.include_router(character.router, prefix="/api/character", tags=["AI 캐릭�
 app.include_router(wearable.router, prefix="/api/wearable", tags=["웨어러블 IoT"])
 app.include_router(digital_twin.router, prefix="/api/twin", tags=["디지털 트윈"])
 app.include_router(wellness.router, prefix="/api/wellness", tags=["건강정보 콘텐츠"])
+app.include_router(rag_admin.router, prefix="/api/rag", tags=["RAG 지식베이스 관리"])
 
 
 # Agentic AI 스케줄러 + RAG 지식 베이스 초기화 + 데모 데이터

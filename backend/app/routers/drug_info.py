@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from app.database import get_db
 from app.models import Medication
 from app.drug_permission import get_drug_full_info
+from app.drug_identification import identify_pill, search_identity_by_name
 from app.health_food import get_health_food_info
 
 router = APIRouter()
@@ -42,8 +43,40 @@ class DrugInfoResult(BaseModel):
     intake_method: str = ""
     raw_material: str = ""
     image_url: str = ""
+    # 낱알식별 전용 필드 (생김새로 약을 식별)
+    drug_shape: str = ""
+    colors: list = []
+    print_front: str = ""
+    print_back: str = ""
+    line_front: str = ""
+    line_back: str = ""
+    size_long: str = ""
     sources: list = []
     is_demo: bool = False
+
+
+class PillCandidate(BaseModel):
+    item_name: str = ""
+    company: str = ""
+    etc_otc: str = ""
+    class_name: str = ""
+    drug_shape: str = ""
+    colors: list = []
+    print_front: str = ""
+    print_back: str = ""
+    line_front: str = ""
+    appearance: str = ""
+    image_url: str = ""
+    source: str = ""
+
+
+class PillIdentifyResult(BaseModel):
+    matched: bool
+    count: int
+    candidates: list = []
+    mode: str = ""
+    scanned: int = 0
+    note: str = ""
 
 
 def _health_food_to_result(info: dict, query: str) -> dict:
@@ -92,6 +125,59 @@ async def search_drug(name: str, ingredient: str = ""):
     if hf.get("matched"):
         return DrugInfoResult(**_health_food_to_result(hf, name))
     return DrugInfoResult(**info)
+
+
+@router.get("/identify", response_model=PillIdentifyResult)
+async def identify_pill_endpoint(
+    shape: str = "",
+    color: str = "",
+    mark: str = "",
+    line: str = "",
+    form: str = "",
+    limit: int = 10,
+):
+    """낱알(알약)의 생김새로 약 후보를 역검색합니다.
+
+    어르신이 약봉투 없이 '알약 하나'만 들고 있을 때, 모양·색·각인으로 약을 찾습니다.
+    예) /api/drug-info/identify?shape=원형&color=하양&mark=AD
+        /api/drug-info/identify?color=노랑&line=있음
+    """
+    if not any([shape, color, mark, line, form]):
+        raise HTTPException(status_code=400, detail="모양·색상·각인 중 하나 이상을 입력해주세요")
+    res = await identify_pill(
+        shape=shape, color=color, mark=mark, line=line, form=form, limit=limit
+    )
+    candidates = res.get("candidates", [])
+
+    def _to_candidate(c: dict) -> PillCandidate:
+        vals = {}
+        for k in PillCandidate.model_fields:
+            v = c.get(k)
+            if k == "colors":
+                vals[k] = v or []
+            else:
+                vals[k] = v if isinstance(v, str) else ("" if v is None else str(v))
+        return PillCandidate(**vals)
+
+    return PillIdentifyResult(
+        matched=bool(candidates),
+        count=len(candidates),
+        candidates=[_to_candidate(c) for c in candidates],
+        mode=res.get("mode", ""),
+        scanned=res.get("scanned", 0),
+        note=res.get("note", ""),
+    )
+
+
+@router.get("/identify/by-name", response_model=PillCandidate)
+async def identify_by_name(name: str):
+    """품목명으로 낱알식별정보(생김새·이미지)만 단독 조회합니다."""
+    if not name or not name.strip():
+        raise HTTPException(status_code=400, detail="제품명을 입력해주세요")
+    info = await search_identity_by_name(name.strip())
+    if not info:
+        raise HTTPException(status_code=404, detail="낱알식별정보를 찾을 수 없습니다")
+    return PillCandidate(**{k: info.get(k, "") for k in PillCandidate.model_fields})
 
 
 @router.get("/health-food/search", response_model=DrugInfoResult)

@@ -59,3 +59,7 @@ dist/
 *.apk
 *.aab
 *.ipa
+
+# RAG/낱알 생성 아티팩트 (서버에서 생성 — 커밋 제외)
+backend/data/
+backend/knowledge/.embedding_cache.json

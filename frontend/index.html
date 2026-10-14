@@ -209,6 +209,24 @@
                         </div>
                         <div id="drug-search-result"></div>
                     </div>
+
+                    <!-- 병용 확인: 새로 드시려는 제품 vs 기존 복용약 -->
+                    <div class="interaction-box">
+                        <h3>🧪 함께 먹어도 될까요?</h3>
+                        <p class="sub-text">새로 드시려는 약·영양제를 기존에 드시는 약과 비교해<br><strong>출혈 위험·성분 중복·심장/혈압 영향</strong>을 쉽게 알려드려요.</p>
+                        <div class="drug-search-row">
+                            <input type="text" id="interaction-input" class="drug-search-input"
+                                   placeholder="예) 펠루비서방정, 판피린, 은행잎 영양제" onkeydown="if(event.key==='Enter')checkInteraction()">
+                            <button class="btn-drug-search" onclick="checkInteraction()">확인</button>
+                        </div>
+                        <div class="interaction-examples">
+                            <span class="sub-text">예시로 해보기:</span>
+                            <button class="chip" onclick="checkInteraction('펠루비서방정')">펠루비서방정</button>
+                            <button class="chip" onclick="checkInteraction('판피린')">종합감기약(판피린)</button>
+                            <button class="chip" onclick="checkInteraction('은행잎추출물')">은행잎 영양제</button>
+                        </div>
+                        <div id="interaction-result"></div>
+                    </div>
                 </div>
             </section>
 

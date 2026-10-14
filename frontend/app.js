@@ -411,6 +411,111 @@ async function searchDrug() {
     }
 }
 
+// ==================== 병용 확인 (새 제품 vs 기존 복용약) ====================
+
+// 데모 시나리오: 평소 복용 중인 약(처방전 1·2) + 만성질환
+const DEMO_CURRENT_MEDS = [
+    { name: '자렐토 15mg', ingredients: ['리바록사반'] },
+    { name: '콩코르 2.5mg', ingredients: ['비소프롤롤'] },
+    { name: '울트라셋이알세미정', ingredients: ['아세트아미노펜', '트라마돌염산염'] },
+];
+const DEMO_CONDITIONS = ['고혈압', '심방세동'];
+
+// 예시 제품의 성분(백엔드 API를 못 쓰는 오프라인에서도 동작하도록)
+const EXAMPLE_INGREDIENTS = {
+    '펠루비서방정': ['펠루비프로펜'],
+    '판피린': ['아세트아미노펜', '클로르페니라민말레산염', 'DL-메틸에페드린염산염', '카페인무수물', '구아이페네신', '티페피딘시트르산염'],
+    '은행잎추출물': ['은행엽추출물', '비타민E'],
+};
+
+const TIER_STYLE = {
+    danger: { color: 'var(--danger)', bg: '#FDECEA', icon: '🔴' },
+    caution: { color: 'var(--warning)', bg: '#FFF4E5', icon: '🟡' },
+    info: { color: 'var(--safe)', bg: '#EAF6EC', icon: '🟢' },
+    none: { color: 'var(--safe)', bg: '#EAF6EC', icon: '✅' },
+};
+
+async function checkInteraction(presetName) {
+    const input = document.getElementById('interaction-input');
+    const resultDiv = document.getElementById('interaction-result');
+    const name = (presetName || (input && input.value) || '').trim();
+    if (input && presetName) input.value = presetName;
+    if (!name) {
+        resultDiv.innerHTML = '<p class="sub-text">새로 드시려는 약·영양제 이름을 입력해주세요.</p>';
+        return;
+    }
+    resultDiv.innerHTML = '<p class="sub-text">기존에 드시는 약과 비교해 확인하고 있어요...</p>';
+
+    // 기존 복용약: 내 약(localStorage) 우선, 없으면 데모 시나리오
+    let currentMeds = [];
+    try { currentMeds = JSON.parse(localStorage.getItem('my_medications') || '[]'); } catch (e) { currentMeds = []; }
+    if (!Array.isArray(currentMeds) || currentMeds.length === 0) currentMeds = DEMO_CURRENT_MEDS;
+
+    const payload = {
+        new_product: { name: name, ingredients: EXAMPLE_INGREDIENTS[name] || [] },
+        current_medications: currentMeds,
+        conditions: DEMO_CONDITIONS,
+        resolve_ingredients: true,
+    };
+
+    try {
+        const res = await fetch(`${API_BASE}/dur/check-interaction`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        if (res.ok) {
+            renderInteractionResult(await res.json(), resultDiv);
+            return;
+        }
+    } catch (err) { /* 오프라인 폴백 */ }
+
+    resultDiv.innerHTML = '<p class="sub-text">지금은 확인이 어려워요. 잠시 후 다시 시도하거나, 약사·의사에게 문의하세요.</p>';
+}
+
+function renderInteractionResult(data, resultDiv) {
+    const overall = TIER_STYLE[data.overall_tier] || TIER_STYLE.none;
+    let html = '';
+
+    html += `<div class="interaction-headline" style="border-color:${overall.color}">
+        <div class="ix-head-title">${overall.icon} ${escapeHtml(data.summary || data.headline)}</div>
+        <div class="ix-head-sub">${escapeHtml(data.intro || '')}</div>
+    </div>`;
+
+    if (!data.findings || data.findings.length === 0) {
+        html += `<div class="ix-card" style="border-left-color:var(--safe);background:${TIER_STYLE.none.bg}">
+            <div class="ix-what">✅ 지금 드시는 약과 함께 복용할 때 특별히 확인된 위험은 없어요.</div>
+            <div class="ix-how">그래도 몸에 이상이 느껴지면 약사·의사와 상담하세요.</div>
+        </div>`;
+    } else {
+        data.findings.forEach(f => {
+            const st = TIER_STYLE[f.tier] || TIER_STYLE.info;
+            html += `<div class="ix-card" style="border-left-color:${st.color};background:${st.bg}">
+                <div class="ix-badge" style="background:${st.color}">${st.icon} ${escapeHtml(f.label)}</div>
+                <div class="ix-title">${escapeHtml(f.title)}</div>
+                <div class="ix-row"><span class="ix-key">무엇이</span><span>${escapeHtml(f.what)}</span></div>
+                <div class="ix-row"><span class="ix-key">왜</span><span>${escapeHtml(f.why)}</span></div>
+                <div class="ix-row"><span class="ix-key">어떻게</span><span>${escapeHtml(f.how)}</span></div>
+                <div class="ix-basis">근거: ${escapeHtml(f.basis)}</div>
+            </div>`;
+        });
+    }
+
+    if (data.safety_notice) {
+        html += `<div class="ix-safety">🛡️ ${escapeHtml(data.safety_notice)}</div>`;
+    }
+    if (data.disclaimer) {
+        html += `<p class="drug-demo-note">※ ${escapeHtml(data.disclaimer)}</p>`;
+    }
+    resultDiv.innerHTML = html;
+
+    // 어르신 친화: 가장 중요한 안내를 음성으로
+    if (typeof speak === 'function' && data.findings && data.findings.length) {
+        const top = data.findings[0];
+        speak(`${top.what} ${top.how}`);
+    }
+}
+
 // ==================== DUR 분석 ====================
 
 async function runDURCheck() {
