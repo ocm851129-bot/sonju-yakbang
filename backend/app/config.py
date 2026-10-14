@@ -7,6 +7,12 @@ load_dotenv()
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 SECRET_KEY = os.getenv("SECRET_KEY", "sonju-yakbang-secret-2026")
 
+# Anthropic Claude (건강 상담 챗봇 1순위 엔진)
+#   ANTHROPIC_API_KEY 가 있으면 상담에 Claude를 우선 사용하고,
+#   없으면 OpenAI → 규칙기반 데모 순으로 자동 폴백합니다.
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001")
+
 # DB 경로: 실행 디렉터리와 무관하게 항상 backend/sonju_yakbang.db 를 사용하도록 절대경로로 고정한다.
 # (상대경로면 uvicorn을 다른 폴더에서 띄웠을 때 빈 DB가 새로 생겨 데이터가 사라진 것처럼 보이는 문제가 있음)
 _BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

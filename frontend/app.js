@@ -27,6 +27,10 @@ function navigate(screen) {
     if (screen === 'mystatus') {
         setTimeout(() => initHealthChart(), 300);
     }
+    // 나만의 투약정보 화면 진입 시 등록 목록 렌더링
+    if (screen === 'mymeds' && typeof renderMyMedList === 'function') {
+        renderMyMedList();
+    }
 }
 
 // ==================== 긴급 전화 ====================
@@ -514,6 +518,101 @@ function renderInteractionResult(data, resultDiv) {
         const top = data.findings[0];
         speak(`${top.what} ${top.how}`);
     }
+}
+
+// ==================== 나만의 투약정보 (등록·저장·분석) ====================
+
+function getUserId() {
+    try { return JSON.parse(localStorage.getItem('user_id')) || 1; } catch (e) { return 1; }
+}
+
+function loadMyMeds() {
+    try { return JSON.parse(localStorage.getItem('my_medications') || '[]'); } catch (e) { return []; }
+}
+
+function saveMyMeds(meds) {
+    localStorage.setItem('my_medications', JSON.stringify(meds));
+    // 백엔드 DB에도 동기화 (온라인일 때만, 실패해도 무시)
+    fetch(`${API_BASE}/medications/bulk/${getUserId()}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ medications: meds, replace: true }),
+    }).catch(() => {});
+}
+
+function renderMyMedList() {
+    const meds = loadMyMeds();
+    const wrap = document.getElementById('mymed-list');
+    const countEl = document.getElementById('mymed-count');
+    if (countEl) countEl.textContent = `(${meds.length})`;
+    if (!wrap) return;
+    if (meds.length === 0) {
+        wrap.innerHTML = '<p class="sub-text">아직 등록한 약이 없어요. 위에서 약을 추가해보세요.</p>';
+        return;
+    }
+    const catLabel = { prescription: '전문', otc: '일반', supplement: '영양제' };
+    wrap.innerHTML = meds.map((m, i) => `
+        <div class="mymed-item">
+            <div class="mymed-item-main">
+                <span class="mymed-item-name">${escapeHtml(m.name)}</span>
+                <span class="mymed-item-tag">${catLabel[m.category] || ''}</span>
+            </div>
+            <div class="mymed-item-sub">${escapeHtml([m.ingredient, m.frequency].filter(Boolean).join(' · '))}</div>
+            <button class="mymed-del" onclick="deleteMyMed(${i})" aria-label="삭제">✕</button>
+        </div>`).join('');
+}
+
+function addMyMed() {
+    const name = (document.getElementById('mymed-name').value || '').trim();
+    if (!name) { alert('약 이름을 입력해주세요.'); return; }
+    const med = {
+        name,
+        ingredient: (document.getElementById('mymed-ingredient').value || '').trim(),
+        frequency: (document.getElementById('mymed-frequency').value || '').trim(),
+        category: document.getElementById('mymed-category').value || 'prescription',
+    };
+    // 성분을 입력 안 했고 예시 약이면 자동 보강
+    if (!med.ingredient && typeof EXAMPLE_INGREDIENTS !== 'undefined' && EXAMPLE_INGREDIENTS[name]) {
+        med.ingredient = EXAMPLE_INGREDIENTS[name].join(', ');
+    }
+    const meds = loadMyMeds();
+    meds.push(med);
+    saveMyMeds(meds);
+    renderMyMedList();
+    // 입력창 비우기
+    ['mymed-name', 'mymed-ingredient', 'mymed-frequency'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('mymed-name').focus();
+}
+
+function deleteMyMed(idx) {
+    const meds = loadMyMeds();
+    meds.splice(idx, 1);
+    saveMyMeds(meds);
+    renderMyMedList();
+}
+
+async function analyzeMyMeds() {
+    const meds = loadMyMeds();
+    const resultDiv = document.getElementById('mymed-analysis');
+    if (meds.length < 2) {
+        resultDiv.innerHTML = '<p class="sub-text">약을 2개 이상 등록하면 함께 드셔도 되는지 분석해 드려요.</p>';
+        return;
+    }
+    resultDiv.innerHTML = '<p class="sub-text">등록하신 약들을 서로 비교해 분석하고 있어요...</p>';
+
+    // 1) 백엔드: DB 저장 후 전체 분석
+    try {
+        await fetch(`${API_BASE}/medications/bulk/${getUserId()}`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ medications: meds, replace: true }),
+        });
+        const res = await fetch(`${API_BASE}/medications/analyze/${getUserId()}`);
+        if (res.ok) {
+            renderInteractionResult(await res.json(), resultDiv);
+            return;
+        }
+    } catch (err) { /* 오프라인 폴백 */ }
+
+    resultDiv.innerHTML = '<p class="sub-text">지금은 분석이 어려워요. 인터넷 연결을 확인하거나 잠시 후 다시 시도해주세요.</p>';
 }
 
 // ==================== DUR 분석 ====================

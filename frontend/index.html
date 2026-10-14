@@ -98,6 +98,11 @@
                         <span class="action-label">의약품 정보</span>
                         <span class="action-desc">복약 관리</span>
                     </button>
+                    <button class="action-btn action-mymeds" onclick="navigate('mymeds')" aria-label="나만의 투약정보">
+                        <span class="action-icon" aria-hidden="true">📋</span>
+                        <span class="action-label">나만의 투약정보</span>
+                        <span class="action-desc">등록·안전분석</span>
+                    </button>
                     <button class="action-btn action-voice" onclick="navigate('voice')" aria-label="음성으로 증상 말하기">
                         <span class="action-icon" aria-hidden="true">🎤</span>
                         <span class="action-label">말하기</span>
@@ -227,6 +232,38 @@
                         </div>
                         <div id="interaction-result"></div>
                     </div>
+                </div>
+            </section>
+
+            <!-- 나만의 투약정보 (업로드·저장·안전분석) -->
+            <section id="mymeds-screen" class="screen">
+                <div class="screen-header">
+                    <button class="btn-back" onclick="navigate('home')">← 뒤로</button>
+                    <h2>📋 나만의 투약정보</h2>
+                </div>
+                <div class="mymeds-container">
+                    <p class="sub-text">평소 드시는 약·영양제를 등록해두면, 서로 함께 먹어도 되는지 <strong>한 번에 안전 분석</strong>해 드려요.</p>
+
+                    <div class="mymeds-form">
+                        <h3>➕ 약 추가하기</h3>
+                        <input type="text" id="mymed-name" class="form-input" placeholder="약 이름 (예: 자렐토 15mg)">
+                        <input type="text" id="mymed-ingredient" class="form-input" placeholder="성분 (예: 리바록사반) — 모르면 비워두세요">
+                        <input type="text" id="mymed-frequency" class="form-input" placeholder="복용법 (예: 저녁 식후 1정)">
+                        <select id="mymed-category" class="form-input">
+                            <option value="prescription">전문의약품(처방약)</option>
+                            <option value="otc">일반의약품(약국약)</option>
+                            <option value="supplement">건강기능식품(영양제)</option>
+                        </select>
+                        <button class="btn-drug-search" style="width:100%;margin-top:6px;" onclick="addMyMed()">약 추가</button>
+                    </div>
+
+                    <div class="mymeds-list-wrap">
+                        <h3>💊 내가 등록한 약 <span id="mymed-count">(0)</span></h3>
+                        <div id="mymed-list"></div>
+                    </div>
+
+                    <button class="btn-take-med" style="width:100%;" onclick="analyzeMyMeds()">🧪 내 약 전체 안전 분석</button>
+                    <div id="mymed-analysis"></div>
                 </div>
             </section>
 

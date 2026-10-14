@@ -1,15 +1,25 @@
-"""GPT/RAG 기반 건강 상담 챗봇 - 복약·질환 상담, 정서지원, 장기 기억"""
+"""Claude/GPT + RAG 기반 건강 상담 챗봇 - 복약·질환 상담, 정서지원, 장기 기억
+
+상담 엔진 우선순위: Anthropic Claude → OpenAI GPT → 규칙기반 데모.
+ANTHROPIC_API_KEY 가 설정되면 Claude를 1순위로 사용합니다.
+"""
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from openai import OpenAI
 from app.database import get_db
 from app.models import ChatMessage, Medication, HealthRecord, User
-from app.config import OPENAI_API_KEY
+from app.config import OPENAI_API_KEY, ANTHROPIC_API_KEY, ANTHROPIC_MODEL
 from app.rag_engine import get_rag_context
 
 router = APIRouter()
 client = OpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
+
+try:
+    from anthropic import Anthropic
+    anthropic_client = Anthropic(api_key=ANTHROPIC_API_KEY) if ANTHROPIC_API_KEY else None
+except Exception:
+    anthropic_client = None
 
 SYSTEM_PROMPT = """당신은 '손주약방'의 AI 건강 도우미입니다. 어르신의 건강 관리를 돕는 친근한 손주 역할을 합니다.
 
@@ -38,6 +48,7 @@ class ChatResponse(BaseModel):
     reply: str
     urgency: str = "normal"
     image_analysis: str = ""  # 이미지 분석 결과 (있을 경우)
+    engine: str = ""  # 응답 생성 엔진: claude | gpt | demo
 
 
 @router.post("/send", response_model=ChatResponse)
@@ -77,36 +88,13 @@ def send_message(request: ChatRequest, db: Session = Depends(get_db)):
     )
     history.reverse()
 
-    messages = [
-        {"role": "system", "content": SYSTEM_PROMPT.format(user_context=user_context) + rag_context + long_term_memory}
-    ]
-    for msg in history:
-        messages.append({"role": msg.role, "content": msg.content})
-    messages.append({"role": "user", "content": request.message})
+    system_content = SYSTEM_PROMPT.format(user_context=user_context) + rag_context + long_term_memory
+    history_msgs = [{"role": msg.role, "content": msg.content} for msg in history]
 
-    # Multimodal: 이미지가 포함된 경우 GPT Vision으로 처리
-    image_analysis = ""
-    if request.image_base64:
-        messages[-1] = {
-            "role": "user",
-            "content": [
-                {"type": "text", "text": request.message or "이 이미지를 분석해주세요."},
-                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{request.image_base64}"}},
-            ],
-        }
-
-    # GPT 호출 (실패 시 규칙 기반 데모 응답으로 자동 대체)
-    try:
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=messages,
-            temperature=0.7,
-            max_tokens=500,
-        )
-        reply = response.choices[0].message.content
-    except Exception as e:
-        print(f"[Chat Error] GPT 호출 실패({type(e).__name__}) → 규칙기반 응답으로 대체")
-        reply = _demo_reply(request.message, user.name, med_list)
+    # 상담 응답 생성: Claude → GPT → 규칙기반 데모 순 폴백
+    reply, engine = _generate_reply(
+        system_content, history_msgs, request.message, request.image_base64, user.name, med_list
+    )
 
     # 위급 상황 감지
     urgency = "normal"
@@ -120,7 +108,7 @@ def send_message(request: ChatRequest, db: Session = Depends(get_db)):
     db.add(ChatMessage(user_id=request.user_id, role="assistant", content=reply))
     db.commit()
 
-    return ChatResponse(reply=reply, urgency=urgency)
+    return ChatResponse(reply=reply, urgency=urgency, engine=engine)
 
 
 @router.get("/history/{user_id}")
@@ -140,6 +128,76 @@ def get_chat_history(user_id: int, limit: int = 20, db: Session = Depends(get_db
             for m in messages
         ]
     }
+
+
+def _generate_reply(system_content, history_msgs, user_message, image_base64, user_name, med_list):
+    """상담 응답을 생성한다. Claude → OpenAI GPT → 규칙기반 데모 순으로 폴백.
+
+    반환: (reply_text, engine_name)
+    """
+    # 1순위: Anthropic Claude
+    if anthropic_client is not None:
+        try:
+            return _claude_reply(system_content, history_msgs, user_message, image_base64), "claude"
+        except Exception as e:
+            print(f"[Chat] Claude 호출 실패({type(e).__name__}) → GPT로 폴백")
+
+    # 2순위: OpenAI GPT
+    if client is not None:
+        try:
+            return _openai_reply(system_content, history_msgs, user_message, image_base64), "gpt"
+        except Exception as e:
+            print(f"[Chat] GPT 호출 실패({type(e).__name__}) → 규칙기반 응답으로 대체")
+
+    # 3순위: 규칙 기반 데모
+    return _demo_reply(user_message, user_name, med_list), "demo"
+
+
+def _claude_reply(system_content, history_msgs, user_message, image_base64=""):
+    """Anthropic Claude 메시지 API 호출 (system 은 별도 파라미터, 이미지 지원)."""
+    messages = [{"role": m["role"], "content": m["content"]} for m in history_msgs]
+    if image_base64:
+        messages.append({
+            "role": "user",
+            "content": [
+                {"type": "text", "text": user_message or "이 이미지를 분석해주세요."},
+                {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": image_base64}},
+            ],
+        })
+    else:
+        messages.append({"role": "user", "content": user_message})
+
+    resp = anthropic_client.messages.create(
+        model=ANTHROPIC_MODEL,
+        max_tokens=500,
+        temperature=0.7,
+        system=system_content,
+        messages=messages,
+    )
+    # content 블록들에서 텍스트만 이어붙임
+    parts = [b.text for b in resp.content if getattr(b, "type", "") == "text"]
+    return "".join(parts).strip()
+
+
+def _openai_reply(system_content, history_msgs, user_message, image_base64=""):
+    """OpenAI GPT 호출 (멀티모달 지원)."""
+    messages = [{"role": "system", "content": system_content}]
+    messages.extend(history_msgs)
+    if image_base64:
+        messages.append({
+            "role": "user",
+            "content": [
+                {"type": "text", "text": user_message or "이 이미지를 분석해주세요."},
+                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_base64}"}},
+            ],
+        })
+    else:
+        messages.append({"role": "user", "content": user_message})
+
+    response = client.chat.completions.create(
+        model="gpt-4o-mini", messages=messages, temperature=0.7, max_tokens=500,
+    )
+    return response.choices[0].message.content
 
 
 DISCLAIMER = "\n\n※ 이 정보는 참고용이며, 정확한 판단은 의료진과 상담하세요."

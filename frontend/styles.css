@@ -1583,14 +1583,16 @@ html.ios .app-main {
     border-radius: 12px;
     font-size: var(--font-size-md);
     font-family: 'Noto Sans KR', sans-serif;
+    color: #1f1f1f;
     outline: none;
     transition: border-color 0.2s;
-    background: var(--bg);
+    background: #fff;  /* 라이트/다크 모드 모두 밝은 배경 고정 (어두운 글씨 가독성) */
 }
+.form-input::placeholder { color: #9aa0a6; }
 
 .form-input:focus {
     border-color: var(--primary);
-    background: white;
+    background: #fff;
 }
 
 .btn-auth-submit {
@@ -1692,7 +1694,10 @@ html.ios .app-main {
     border: 2px solid var(--border);
     border-radius: var(--radius-sm);
     outline: none;
+    background: #fff;
+    color: #1f1f1f;
 }
+.drug-search-input::placeholder { color: #9aa0a6; }
 .drug-search-input:focus { border-color: var(--primary); }
 .btn-drug-search {
     padding: 0 22px;
@@ -1856,4 +1861,31 @@ html.ios .app-main {
 .ix-safety {
     margin-top: 14px; padding: 14px 16px; border-radius: 12px;
     background: #EEF4FF; border: 1.5px solid #AFc4F0; color: #244; font-size: 15px; line-height: 1.55;
+}
+
+/* ==================== 나만의 투약정보 ==================== */
+.mymeds-container { padding: 16px; }
+.mymeds-form {
+    margin: 12px 0; padding: 16px; background: #fff;
+    border: 2px solid var(--primary-light); border-radius: 16px; color: #262626;
+}
+.mymeds-form h3 { color: var(--primary-dark); margin-bottom: 10px; }
+.mymeds-form .form-input { margin-bottom: 8px; }
+.mymeds-list-wrap { margin: 18px 0; }
+.mymeds-list-wrap h3 { color: var(--primary-dark); margin-bottom: 10px; }
+.mymed-item {
+    position: relative; padding: 12px 40px 12px 14px; margin-bottom: 8px;
+    background: #fff; border: 1.5px solid var(--border); border-radius: 12px; color: #262626;
+}
+.mymed-item-main { display: flex; align-items: center; gap: 8px; }
+.mymed-item-name { font-size: 17px; font-weight: 700; color: #1f1f1f; }
+.mymed-item-tag {
+    font-size: 12px; padding: 2px 8px; border-radius: 10px;
+    background: var(--primary-light); color: #fff; font-weight: 700;
+}
+.mymed-item-sub { font-size: 14px; color: #666; margin-top: 4px; }
+.mymed-del {
+    position: absolute; top: 50%; right: 10px; transform: translateY(-50%);
+    width: 32px; height: 32px; min-width: 32px; min-height: 32px; border-radius: 50%;
+    background: #FDECEA; color: var(--danger); font-size: 16px; font-weight: 700; border: none;
 }

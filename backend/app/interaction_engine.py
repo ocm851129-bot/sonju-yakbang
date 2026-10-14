@@ -300,3 +300,55 @@ def check_interaction(new_product: dict, current_medications: List[dict],
         "disclaimer": ("이 안내는 성분·분류에 근거한 참고용이며, 실제 위험도는 식약처 DUR 자료와 "
                        "제품 허가사항, 성분·함량, 건강상태에 따라 달라질 수 있어요."),
     }
+
+
+def check_medication_list(medications: List[dict], conditions: List[str] = None) -> dict:
+    """내가 등록한 '전체 복용약 목록'의 병용 안전성을 한꺼번에 분석한다.
+
+    각 약을 '새 제품'처럼 두고 나머지 약들과 비교해 모든 조합을 점검한 뒤
+    중복 없이 합쳐서 3단계 위험도로 반환한다(나만의 투약정보 분석 메뉴용).
+    """
+    meds = [m for m in (medications or []) if (m.get("name") or "").strip()]
+    all_findings = []
+    seen_titles = set()
+
+    for i, med in enumerate(meds):
+        others = [m for j, m in enumerate(meds) if j != i]
+        res = check_interaction(med, others, conditions)
+        for f in res["findings"]:
+            # 조합 중복 제거: 두 약 이름을 정렬한 키
+            names = tuple(sorted([f["new_product"]] + list(f.get("related_medications", []))))
+            key = (f["basis"], names)
+            if key in seen_titles:
+                continue
+            seen_titles.add(key)
+            all_findings.append(f)
+
+    all_findings.sort(key=lambda f: f["rank"], reverse=True)
+
+    if not all_findings:
+        overall = "none"
+        summary = f"등록하신 약 {len(meds)}종 사이에 특별히 확인된 위험은 없어요."
+    else:
+        overall = all_findings[0]["tier"]
+        n_danger = sum(1 for f in all_findings if f["tier"] == "danger")
+        n_caution = sum(1 for f in all_findings if f["tier"] == "caution")
+        bits = []
+        if n_danger:
+            bits.append(f"반드시 확인 {n_danger}건")
+        if n_caution:
+            bits.append(f"주의 {n_caution}건")
+        summary = f"등록하신 약 {len(meds)}종에서 {', '.join(bits)}이 확인됐어요."
+
+    return {
+        "headline": "내 약, 함께 드셔도 괜찮은지 확인했어요",
+        "intro": "등록하신 모든 약과 영양제를 서로 비교해 위험한 조합을 찾았어요.",
+        "medication_count": len(meds),
+        "overall_tier": overall,
+        "summary": summary,
+        "findings": all_findings,
+        "safety_notice": ("처방받아 드시던 약은 이 안내만 보고 임의로 중단하지 마세요. "
+                          "궁금하거나 걱정되는 조합은 다음 진료나 약국 방문 때 꼭 확인하세요."),
+        "disclaimer": ("이 안내는 성분·분류에 근거한 참고용이며, 실제 위험도는 식약처 DUR 자료와 "
+                       "제품 허가사항, 성분·함량, 건강상태에 따라 달라질 수 있어요."),
+    }
