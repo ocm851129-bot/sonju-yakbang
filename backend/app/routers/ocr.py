@@ -7,15 +7,27 @@ from pydantic import BaseModel
 from openai import OpenAI
 from app.database import get_db
 from app.models import HealthRecord, Medication
-from app.config import OPENAI_API_KEY, GOOGLE_VISION_API_KEY, CLOVA_OCR_SECRET, CLOVA_OCR_URL
+from app.config import (
+    OPENAI_API_KEY, GOOGLE_VISION_API_KEY, CLOVA_OCR_SECRET, CLOVA_OCR_URL,
+    ANTHROPIC_API_KEY, ANTHROPIC_MODEL,
+)
 from app.drug_permission import get_drug_full_info
 from app.health_food import get_health_food_info
 import base64
 import json
+import re
 import httpx
 
 router = APIRouter()
 client = OpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
+
+# Claude Vision (OCR 2차 구조화 폴백). OpenAI 크레딧이 없어도 ANTHROPIC_API_KEY만 있으면
+# 처방전·제품 사진을 실제로 인식한다. GPT Vision 실패 시 자동으로 Claude로 넘어간다.
+try:
+    from anthropic import Anthropic
+    anthropic_client = Anthropic(api_key=ANTHROPIC_API_KEY) if ANTHROPIC_API_KEY else None
+except Exception:
+    anthropic_client = None
 
 
 class OCRResult(BaseModel):
@@ -197,20 +209,9 @@ async def clova_ocr(image_bytes: bytes) -> str:
 
 # ==================== 2차: GPT Vision 구조화 ====================
 
-async def gpt_vision_structure(image_bytes: bytes, raw_text: str = "") -> dict:
-    """GPT-4o Vision으로 처방전 정보를 구조화 (Key-Value 추출)"""
-    base64_image = base64.b64encode(image_bytes).decode("utf-8")
-
-    context_msg = ""
-    if raw_text:
-        context_msg = f"\n\n[참고: OCR로 추출된 원본 텍스트]\n{raw_text[:2000]}"
-
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {
-                "role": "system",
-                "content": f"""당신은 한국의 처방전·의약품·건강기능식품을 정확하게 분석하는 AI 약사입니다.
+def _vision_system_prompt(context_msg: str = "") -> str:
+    """처방전·의약품·건강기능식품 구조화용 공통 시스템 프롬프트 (GPT·Claude 공용)."""
+    return f"""당신은 한국의 처방전·의약품·건강기능식품을 정확하게 분석하는 AI 약사입니다.
 이미지는 (1) 병원 처방전, (2) 약 포장/약봉투, 또는 (3) 건강기능식품·영양제 제품/라벨일 수 있습니다.
 이미지와 OCR 텍스트를 참고하여 각 품목을 분류하고 구조화된 정보를 추출하세요.
 정보가 불명확하면 빈 문자열로 남기고, 지어내지 마세요.
@@ -244,8 +245,36 @@ functional_content, intake_method 에 그대로 옮겨 적으세요(과장 표�
         }}
     ],
     "confidence": 0.9
-}}{context_msg}""",
-            },
+}}{context_msg}"""
+
+
+def _extract_json(text: str) -> dict:
+    """모델 응답 텍스트에서 JSON 객체를 추출해 파싱한다(코드펜스·잡설 제거)."""
+    text = text.strip()
+    # ```json ... ``` 코드펜스 제거
+    fence = re.search(r"```(?:json)?\s*(\{.*\})\s*```", text, re.DOTALL)
+    if fence:
+        text = fence.group(1)
+    else:
+        # 본문에서 가장 바깥 { ... } 만 추출
+        start, end = text.find("{"), text.rfind("}")
+        if start != -1 and end != -1 and end > start:
+            text = text[start:end + 1]
+    return json.loads(text)
+
+
+async def gpt_vision_structure(image_bytes: bytes, raw_text: str = "") -> dict:
+    """GPT-4o Vision으로 처방전 정보를 구조화 (Key-Value 추출)"""
+    base64_image = base64.b64encode(image_bytes).decode("utf-8")
+
+    context_msg = ""
+    if raw_text:
+        context_msg = f"\n\n[참고: OCR로 추출된 원본 텍스트]\n{raw_text[:2000]}"
+
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "system", "content": _vision_system_prompt(context_msg)},
             {
                 "role": "user",
                 "content": [
@@ -259,6 +288,53 @@ functional_content, intake_method 에 그대로 옮겨 적으세요(과장 표�
     )
 
     return json.loads(response.choices[0].message.content)
+
+
+def claude_vision_structure(image_bytes: bytes, raw_text: str = "") -> dict:
+    """Claude Vision으로 처방전·제품 정보를 구조화 (GPT Vision 폴백).
+
+    OpenAI 크레딧이 없어도 ANTHROPIC_API_KEY만 있으면 사진을 실제로 인식한다.
+    """
+    base64_image = base64.b64encode(image_bytes).decode("utf-8")
+    context_msg = f"\n\n[참고: OCR로 추출된 원본 텍스트]\n{raw_text[:2000]}" if raw_text else ""
+
+    resp = anthropic_client.messages.create(
+        model=ANTHROPIC_MODEL,
+        max_tokens=2000,
+        system=_vision_system_prompt(context_msg)
+        + "\n\n반드시 설명 없이 JSON 객체 하나만 출력하세요.",
+        messages=[{
+            "role": "user",
+            "content": [
+                {"type": "text", "text": "이 이미지(처방전·약 포장·건강기능식품 중 하나)를 분석해 각 품목을 분류하고 정보를 추출해주세요. JSON만 출력하세요."},
+                {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": base64_image}},
+            ],
+        }],
+    )
+    text = "".join(b.text for b in resp.content if getattr(b, "type", "") == "text")
+    return _extract_json(text)
+
+
+async def vision_structure(image_bytes: bytes, raw_text: str = "") -> tuple:
+    """사용 가능한 Vision 엔진으로 구조화한다. GPT → Claude 순 폴백.
+
+    반환: (구조화 결과 dict, 사용된 엔진 라벨). 둘 다 없거나 실패하면 예외를 올려
+    상위에서 데모 응답으로 대체한다.
+    """
+    last_err = None
+    if client is not None:
+        try:
+            return await gpt_vision_structure(image_bytes, raw_text), "gpt-vision"
+        except Exception as e:
+            last_err = e
+            print(f"[OCR] GPT Vision 실패({type(e).__name__}) → Claude Vision 시도")
+    if anthropic_client is not None:
+        try:
+            return claude_vision_structure(image_bytes, raw_text), "claude-vision"
+        except Exception as e:
+            last_err = e
+            print(f"[OCR] Claude Vision 실패({type(e).__name__})")
+    raise last_err or RuntimeError("사용 가능한 Vision 엔진이 없습니다")
 
 
 # ==================== 메인 엔드포인트 ====================
@@ -283,16 +359,14 @@ async def scan_prescription(
         # 1차 OCR: Google Vision 우선, 실패 시 CLOVA
         raw_text = await google_vision_ocr(image_content)
         if raw_text:
-            ocr_engine = "google-vision + gpt-structure"
+            stage1 = "google-vision"
         else:
             raw_text = await clova_ocr(image_content)
-            if raw_text:
-                ocr_engine = "clova-ocr + gpt-structure"
-            else:
-                ocr_engine = "gpt-vision-only"
+            stage1 = "clova-ocr" if raw_text else ""
 
-        # 2차 구조화: GPT Vision (1차 OCR 텍스트를 컨텍스트로 전달)
-        result = await gpt_vision_structure(image_content, raw_text)
+        # 2차 구조화: GPT Vision → Claude Vision 순 폴백
+        result, stage2 = await vision_structure(image_content, raw_text)
+        ocr_engine = f"{stage1} + {stage2}" if stage1 else f"{stage2}-only"
 
         # 3차 보강: 식약처 의약품 제품 허가정보 + e약은요로 각 약품 정보 채우기
         drug_info_source = await enrich_medications_with_permit(result.get("medications", []))
@@ -383,12 +457,13 @@ async def scan_product(
 
         raw_text = await google_vision_ocr(image_content)
         if raw_text:
-            ocr_engine = "google-vision + gpt-structure"
+            stage1 = "google-vision"
         else:
             raw_text = await clova_ocr(image_content)
-            ocr_engine = "clova-ocr + gpt-structure" if raw_text else "gpt-vision-only"
+            stage1 = "clova-ocr" if raw_text else ""
 
-        result = await gpt_vision_structure(image_content, raw_text)
+        result, stage2 = await vision_structure(image_content, raw_text)
+        ocr_engine = f"{stage1} + {stage2}" if stage1 else f"{stage2}-only"
         items = result.get("medications", [])
 
         # 종류별(의약품/건강기능식품) 정보 보강
