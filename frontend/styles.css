@@ -494,10 +494,19 @@ body {
 }
 
 /* ==================== 챗봇 ==================== */
+/* 상담 화면에서는 메인 영역 스크롤을 없애고 입력창을 뷰포트 안(하단 내비 위)에 고정해
+   화면을 아래로 내리지 않아도 바로 입력할 수 있게 한다 */
+.app-main:has(#chat-screen.active) {
+    padding-bottom: 0;
+    overflow: hidden;
+}
+
 .chat-container {
     display: flex;
     flex-direction: column;
-    height: calc(100vh - 200px);
+    height: calc(100vh - 250px);
+    height: calc(100dvh - 250px);
+    padding-bottom: 8px;
 }
 
 .chat-messages {
