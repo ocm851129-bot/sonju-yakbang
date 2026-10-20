@@ -715,6 +715,10 @@ async function sendChat() {
             const data = await response.json();
             addChatMessage('assistant', data.reply);
             speak(data.reply);  // TTS 음성 출력
+            // 병용확인 결과가 함께 오면 말풍선 아래에 3단계 위험도 카드로 표시
+            if (data.interaction) {
+                addInteractionCard(data.interaction);
+            }
             if (data.urgency === 'emergency') {
                 alert('⚠️ 위급 상황이 의심됩니다. 119에 전화하시겠습니까?');
             }
@@ -729,6 +733,20 @@ async function sendChat() {
             speak(demoReplies.default);  // TTS 음성 출력
         }, 1000);
     }
+}
+
+function addInteractionCard(interaction) {
+    // 챗봇 대화 안에 병용확인(새 제품 vs 기존약) 결과 카드를 삽입한다.
+    const container = document.getElementById('chat-messages');
+    const msgDiv = document.createElement('div');
+    msgDiv.className = 'msg assistant';
+    const card = document.createElement('div');
+    card.className = 'msg-bubble ix-chat-card';
+    msgDiv.innerHTML = `<div class="msg-avatar">🧪</div>`;
+    msgDiv.appendChild(card);
+    renderInteractionResult(interaction, card);
+    container.appendChild(msgDiv);
+    container.scrollTop = container.scrollHeight;
 }
 
 function addChatMessage(role, content) {
@@ -785,6 +803,41 @@ const TTS_RATE = 0.85;  // 느리게 (고령자 배려)
 const TTS_PITCH = 1.0;
 const TTS_LANG = 'ko-KR';
 
+// 자연스러운 한국어 음성 선택.
+//   기존에는 첫 번째 ko 음성을 그대로 썼는데, 윈도우에선 보통 구형 기계음
+//   'Microsoft Heami'가 잡혀 부자연스러웠다. 신경망(Natural)/온라인/구글 음성을
+//   우선 선택하고, 구형 음성은 최후순위로 밀어낸다.
+let _cachedKoVoice = null;
+
+function pickKoreanVoice() {
+    if (!('speechSynthesis' in window)) return null;
+    const voices = window.speechSynthesis.getVoices() || [];
+    const ko = voices.filter(v => (v.lang || '').toLowerCase().startsWith('ko'));
+    if (!ko.length) return null;
+
+    const score = (v) => {
+        const n = (v.name || '').toLowerCase();
+        let s = 0;
+        if (n.includes('natural')) s += 100;   // Microsoft ... Online (Natural) — 가장 자연스러움
+        if (n.includes('online')) s += 40;
+        if (n.includes('google')) s += 80;      // 크롬의 'Google 한국의' — 자연스러움
+        if (n.includes('neural')) s += 60;
+        if (/(sunhi|injoon|hyunsu|jimin|bongjin|gookmin|seoyeon|yuna|kyuwon)/.test(n)) s += 30;
+        if (n.includes('heami')) s -= 50;        // 구형 기계음 감점
+        if (v.localService === false) s += 10;   // 클라우드 신경망 가점
+        return s;
+    };
+    return ko.slice().sort((a, b) => score(b) - score(a))[0];
+}
+
+function refreshKoVoice() { _cachedKoVoice = pickKoreanVoice(); }
+
+if ('speechSynthesis' in window) {
+    refreshKoVoice();
+    // 음성 목록은 비동기로 로드되므로 로드 완료 시 다시 고른다.
+    window.speechSynthesis.addEventListener('voiceschanged', refreshKoVoice);
+}
+
 function speak(text) {
     if (!TTS_ENABLED || !('speechSynthesis' in window)) return;
 
@@ -805,10 +858,12 @@ function speak(text) {
     utterance.rate = TTS_RATE;
     utterance.pitch = TTS_PITCH;
 
-    // 한국어 음성 선택
-    const voices = window.speechSynthesis.getVoices();
-    const koreanVoice = voices.find(v => v.lang.startsWith('ko'));
-    if (koreanVoice) utterance.voice = koreanVoice;
+    // 자연스러운 한국어 음성 선택 (신경망/온라인 우선, 구형 기계음 회피)
+    const koreanVoice = _cachedKoVoice || pickKoreanVoice();
+    if (koreanVoice) {
+        utterance.voice = koreanVoice;
+        utterance.lang = koreanVoice.lang || TTS_LANG;
+    }
 
     window.speechSynthesis.speak(utterance);
 }
