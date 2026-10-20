@@ -4,6 +4,7 @@
 ANTHROPIC_API_KEY 가 설정되면 Claude를 1순위로 사용합니다.
 """
 import re
+from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
@@ -58,7 +59,7 @@ class ChatResponse(BaseModel):
     urgency: str = "normal"
     image_analysis: str = ""  # 이미지 분석 결과 (있을 경우)
     engine: str = ""  # 응답 생성 엔진: claude | gpt | demo
-    interaction: dict = None  # 병용확인 결과(새 제품 vs 기존약). 있으면 프론트가 카드로 렌더
+    interaction: Optional[dict] = None  # 병용확인 결과(새 제품 vs 기존약). 있으면 프론트가 카드로 렌더
 
 
 @router.post("/send", response_model=ChatResponse)
