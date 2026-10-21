@@ -98,6 +98,11 @@
                         <span class="action-label">의약품 정보</span>
                         <span class="action-desc">복약 관리</span>
                     </button>
+                    <button class="action-btn action-mymeds" onclick="navigate('mymeds')" aria-label="나만의 투약정보">
+                        <span class="action-icon" aria-hidden="true">📋</span>
+                        <span class="action-label">나만의 투약정보</span>
+                        <span class="action-desc">등록·안전분석</span>
+                    </button>
                     <button class="action-btn action-voice" onclick="navigate('voice')" aria-label="음성으로 증상 말하기">
                         <span class="action-icon" aria-hidden="true">🎤</span>
                         <span class="action-label">말하기</span>
@@ -174,18 +179,23 @@
             <section id="ocr-screen" class="screen">
                 <div class="screen-header">
                     <button class="btn-back" onclick="navigate('home')">← 뒤로</button>
-                    <h2>📷 처방전 찍기</h2>
+                    <h2>📷 처방전·영양제 찍기</h2>
                 </div>
                 <div class="ocr-container">
                     <div class="ocr-instruction">
-                        <p class="big-text">처방전을 카메라로<br>찍어주세요</p>
-                        <p class="sub-text">밝은 곳에서 글자가 잘 보이게 찍어주세요</p>
+                        <p class="big-text">처방전이나 영양제를<br>카메라로 찍어주세요</p>
+                        <p class="sub-text">처방전·약 봉투는 물론 건강기능식품(영양제)도 인식해요</p>
                     </div>
                     <div class="camera-area">
                         <input type="file" id="camera-input" accept="image/*" capture="environment" onchange="handleImage(event)" style="display:none;">
                         <button class="btn-camera" onclick="document.getElementById('camera-input').click()">
                             <span class="camera-icon">📸</span>
-                            <span>사진 찍기</span>
+                            <span>처방전 찍기</span>
+                        </button>
+                        <input type="file" id="product-input" accept="image/*" capture="environment" onchange="handleProductScan(event)" style="display:none;">
+                        <button class="btn-camera" onclick="document.getElementById('product-input').click()" style="border-color: var(--safe); color: var(--safe);">
+                            <span class="camera-icon">🌿</span>
+                            <span>영양제·건강식품 찍기</span>
                         </button>
                     </div>
                     <div class="ocr-result" id="ocr-result" style="display:none;">
@@ -204,6 +214,56 @@
                         </div>
                         <div id="drug-search-result"></div>
                     </div>
+
+                    <!-- 병용 확인: 새로 드시려는 제품 vs 기존 복용약 -->
+                    <div class="interaction-box">
+                        <h3>🧪 함께 먹어도 될까요?</h3>
+                        <p class="sub-text">새로 드시려는 약·영양제를 기존에 드시는 약과 비교해<br><strong>출혈 위험·성분 중복·심장/혈압 영향</strong>을 쉽게 알려드려요.</p>
+                        <div class="drug-search-row">
+                            <input type="text" id="interaction-input" class="drug-search-input"
+                                   placeholder="예) 펠루비서방정, 판피린, 은행잎 영양제" onkeydown="if(event.key==='Enter')checkInteraction()">
+                            <button class="btn-drug-search" onclick="checkInteraction()">확인</button>
+                        </div>
+                        <div class="interaction-examples">
+                            <span class="sub-text">예시로 해보기:</span>
+                            <button class="chip" onclick="checkInteraction('펠루비서방정')">펠루비서방정</button>
+                            <button class="chip" onclick="checkInteraction('판피린')">종합감기약(판피린)</button>
+                            <button class="chip" onclick="checkInteraction('은행잎추출물')">은행잎 영양제</button>
+                        </div>
+                        <div id="interaction-result"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 나만의 투약정보 (업로드·저장·안전분석) -->
+            <section id="mymeds-screen" class="screen">
+                <div class="screen-header">
+                    <button class="btn-back" onclick="navigate('home')">← 뒤로</button>
+                    <h2>📋 나만의 투약정보</h2>
+                </div>
+                <div class="mymeds-container">
+                    <p class="sub-text">평소 드시는 약·영양제를 등록해두면, 서로 함께 먹어도 되는지 <strong>한 번에 안전 분석</strong>해 드려요.</p>
+
+                    <div class="mymeds-form">
+                        <h3>➕ 약 추가하기</h3>
+                        <input type="text" id="mymed-name" class="form-input" placeholder="약 이름 (예: 자렐토 15mg)">
+                        <input type="text" id="mymed-ingredient" class="form-input" placeholder="성분 (예: 리바록사반) — 모르면 비워두세요">
+                        <input type="text" id="mymed-frequency" class="form-input" placeholder="복용법 (예: 저녁 식후 1정)">
+                        <select id="mymed-category" class="form-input">
+                            <option value="prescription">전문의약품(처방약)</option>
+                            <option value="otc">일반의약품(약국약)</option>
+                            <option value="supplement">건강기능식품(영양제)</option>
+                        </select>
+                        <button class="btn-drug-search" style="width:100%;margin-top:6px;" onclick="addMyMed()">약 추가</button>
+                    </div>
+
+                    <div class="mymeds-list-wrap">
+                        <h3>💊 내가 등록한 약 <span id="mymed-count">(0)</span></h3>
+                        <div id="mymed-list"></div>
+                    </div>
+
+                    <button class="btn-take-med" style="width:100%;" onclick="analyzeMyMeds()">🧪 내 약 전체 안전 분석</button>
+                    <div id="mymed-analysis"></div>
                 </div>
             </section>
 

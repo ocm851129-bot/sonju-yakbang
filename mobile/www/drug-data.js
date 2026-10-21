@@ -121,6 +121,71 @@ const LOCAL_DRUG_DB = [
         usage: '의사가 정한 용량을 매일 복용합니다.',
         caution: '메스꺼움·시야 이상 등 중독 증상 시 즉시 병원. 아미오다론과 병용 주의.',
     },
+
+    // ===== 건강기능식품(기능성 제품) — 고령자 다빈도 =====
+    {
+        display: '오메가3 (EPA·DHA)', ingredient: '정제어유(EPA·DHA)', category: 'supplement', etc_otc: '건강기능식품',
+        class_name: '건강기능식품', match: ['오메가3', '오메가쓰리', '오메가-3', 'omega', 'epa', 'dha'],
+        effect: '혈중 중성지방 개선·혈행 개선·기억력 개선에 도움을 줄 수 있습니다.',
+        usage: '1일 1회 1캡슐을 충분한 물과 함께 섭취합니다.',
+        caution: '와파린·아스피린 등 항혈전제 복용자는 출혈 위험이 있어 섭취 전 상담하세요.',
+    },
+    {
+        display: '비타민D', ingredient: '비타민D3(콜레칼시페롤)', category: 'supplement', etc_otc: '건강기능식품',
+        class_name: '건강기능식품', match: ['비타민d', '비타민디', 'vitamind', '콜레칼시페롤'],
+        effect: '칼슘 흡수·뼈의 형성과 유지에 도움을 줄 수 있습니다.',
+        usage: '1일 1회 1정을 섭취합니다.',
+        caution: '과다 섭취 시 고칼슘혈증이 생길 수 있으니 권장량을 지키세요.',
+    },
+    {
+        display: '프로바이오틱스(유산균)', ingredient: '락토바실러스·비피도박테리움', category: 'supplement', etc_otc: '건강기능식품',
+        class_name: '건강기능식품', match: ['프로바이오틱스', '유산균', 'probiotics', '락토바실러스', '비피더스'],
+        effect: '유산균 증식·유해균 억제·배변활동 원활에 도움을 줄 수 있습니다.',
+        usage: '1일 1회 1포(또는 1캡슐)를 식후에 섭취합니다.',
+        caution: '항생제 복용 중에는 2시간 이상 간격을 두고 섭취하세요.',
+    },
+    {
+        display: '밀크씨슬(실리마린)', ingredient: '밀크씨슬 추출물', category: 'supplement', etc_otc: '건강기능식품',
+        class_name: '건강기능식품', match: ['밀크씨슬', '실리마린', '밀크시슬', 'milkthistle'],
+        effect: '간 건강에 도움을 줄 수 있습니다.',
+        usage: '1일 1회 1정을 물과 함께 섭취합니다.',
+        caution: '국화과 식물 알레르기가 있으면 주의하세요.',
+    },
+    {
+        display: '루테인', ingredient: '마리골드꽃 추출물(루테인)', category: 'supplement', etc_otc: '건강기능식품',
+        class_name: '건강기능식품', match: ['루테인', 'lutein', '황반'],
+        effect: '노화로 감소할 수 있는 황반색소 밀도 유지에 도움을 줄 수 있습니다.',
+        usage: '1일 1회 1정을 섭취합니다.',
+        caution: '흡연자는 베타카로틴 복합제품 섭취에 주의하세요.',
+    },
+    {
+        display: '코엔자임Q10', ingredient: '코엔자임Q10', category: 'supplement', etc_otc: '건강기능식품',
+        class_name: '건강기능식품', match: ['코엔자임', '큐텐', 'q10', 'coq10', '코큐텐'],
+        effect: '항산화·높은 혈압 감소에 도움을 줄 수 있습니다.',
+        usage: '1일 1회 1정을 섭취합니다.',
+        caution: '혈압약·와파린 복용자는 섭취 전 상담하세요.',
+    },
+    {
+        display: '홍삼', ingredient: '홍삼농축액', category: 'supplement', etc_otc: '건강기능식품',
+        class_name: '건강기능식품', match: ['홍삼', '정관장', '홍삼정'],
+        effect: '면역력 증진·피로 개선·혈행 개선·기억력 개선에 도움을 줄 수 있습니다.',
+        usage: '1일 1회 1포를 섭취합니다.',
+        caution: '혈압약·당뇨약·항응고제 복용자는 섭취 전 상담하세요.',
+    },
+    {
+        display: '칼슘·마그네슘·비타민D', ingredient: '탄산칼슘·산화마그네슘·비타민D3', category: 'supplement', etc_otc: '건강기능식품',
+        class_name: '건강기능식품', match: ['칼슘', '마그네슘', '칼마디', 'calcium', 'magnesium'],
+        effect: '뼈·치아 형성에 필요하며 신경·근육 기능 유지에 도움을 줄 수 있습니다.',
+        usage: '1일 1~2회 1정을 섭취합니다.',
+        caution: '갑상선호르몬제·일부 항생제와 2~4시간 간격을 두세요.',
+    },
+    {
+        display: '종합비타민·미네랄', ingredient: '비타민B군·C·D·아연 등', category: 'supplement', etc_otc: '건강기능식품',
+        class_name: '건강기능식품', match: ['종합비타민', '멀티비타민', 'multivitamin', '센트룸'],
+        effect: '각종 비타민·미네랄 보충으로 결핍 예방에 도움을 줄 수 있습니다.',
+        usage: '1일 1회 1정을 식후에 섭취합니다.',
+        caution: '다른 영양제와 성분이 겹치지 않게 하세요.',
+    },
 ];
 
 /** 텍스트 정규화(공백·특수문자 제거, 소문자) */

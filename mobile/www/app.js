@@ -27,6 +27,10 @@ function navigate(screen) {
     if (screen === 'mystatus') {
         setTimeout(() => initHealthChart(), 300);
     }
+    // 나만의 투약정보 화면 진입 시 등록 목록 렌더링
+    if (screen === 'mymeds' && typeof renderMyMedList === 'function') {
+        renderMyMedList();
+    }
 }
 
 // ==================== 긴급 전화 ====================
@@ -159,6 +163,41 @@ async function handleImage(event) {
     }
 
     // 2) 백엔드 불가/실패 시 → 기기 내(오프라인) OCR 실행
+    await clientSideOCR(file, medsDiv);
+}
+
+/** 영양제·건강기능식품(및 일반 제품) 통합 스캔.
+ *  백엔드가 품목을 자동 분류(의약품/건강기능식품)해 정보를 보강한다. */
+async function handleProductScan(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const resultDiv = document.getElementById('ocr-result');
+    const medsDiv = document.getElementById('ocr-medications');
+    resultDiv.style.display = 'block';
+    medsDiv.innerHTML = '<p>🌿 제품을 분석하고 있습니다...</p>';
+
+    // 1) 백엔드(통합 스캔) 우선
+    try {
+        const formData = new FormData();
+        formData.append('image', file);
+        const response = await fetch(`${API_BASE}/ocr/product?user_id=${currentUser?.id || 1}`, {
+            method: 'POST',
+            body: formData,
+        });
+        if (response.ok) {
+            const data = await response.json();
+            if (data && (data.medications || []).length > 0) {
+                saveRecognizedMeds(data.medications);
+                renderOCRResult(data);
+                return;
+            }
+        }
+    } catch (err) {
+        /* 백엔드 불가 → 아래 기기 내 OCR */
+    }
+
+    // 2) 백엔드 불가/실패 시 → 기기 내(오프라인) OCR (의약품+건강기능식품 DB)
     await clientSideOCR(file, medsDiv);
 }
 
@@ -313,8 +352,11 @@ function renderOCRResult(data) {
             </div>`;
         if (hasPermit) {
             const merged = Object.assign({ item_name: med.name, ingredient: med.ingredient, category: med.category }, med.permit);
+            const isSupp = med.category === 'supplement' || med.product_type === 'health_functional_food' || (med.permit && med.permit.kind === 'health_food');
+            const detailLabel = isSupp ? '🌿 이 영양제는 어떤 제품인가요?' : '📋 이 약은 어떤 약인가요?';
             html += `
-                <button class="btn-drug-detail" onclick="toggleDrugDetail(${idx})">📋 이 약은 어떤 약인가요?</button>
+                <button class="btn-drug-detail" onclick="toggleDrugDetail(${idx})">${detailLabel}</button>`;
+            html += `
                 <div class="drug-detail-wrap" id="drug-detail-${idx}" style="display:none;">
                     ${renderDrugInfoCard(merged, { showTitle: false })}
                 </div>`;
@@ -371,6 +413,206 @@ async function searchDrug() {
     } else {
         resultDiv.innerHTML = `<p class="sub-text">'${escapeHtml(name)}'에 대한 정보를 찾지 못했습니다. 약 이름을 정확히 입력해 주세요.<br>(예: 아모디핀, 메트포르민, 타이레놀)</p>`;
     }
+}
+
+// ==================== 병용 확인 (새 제품 vs 기존 복용약) ====================
+
+// 데모 시나리오: 평소 복용 중인 약(처방전 1·2) + 만성질환
+const DEMO_CURRENT_MEDS = [
+    { name: '자렐토 15mg', ingredients: ['리바록사반'] },
+    { name: '콩코르 2.5mg', ingredients: ['비소프롤롤'] },
+    { name: '울트라셋이알세미정', ingredients: ['아세트아미노펜', '트라마돌염산염'] },
+];
+const DEMO_CONDITIONS = ['고혈압', '심방세동'];
+
+// 예시 제품의 성분(백엔드 API를 못 쓰는 오프라인에서도 동작하도록)
+const EXAMPLE_INGREDIENTS = {
+    '펠루비서방정': ['펠루비프로펜'],
+    '판피린': ['아세트아미노펜', '클로르페니라민말레산염', 'DL-메틸에페드린염산염', '카페인무수물', '구아이페네신', '티페피딘시트르산염'],
+    '은행잎추출물': ['은행엽추출물', '비타민E'],
+};
+
+const TIER_STYLE = {
+    danger: { color: 'var(--danger)', bg: '#FDECEA', icon: '🔴' },
+    caution: { color: 'var(--warning)', bg: '#FFF4E5', icon: '🟡' },
+    info: { color: 'var(--safe)', bg: '#EAF6EC', icon: '🟢' },
+    none: { color: 'var(--safe)', bg: '#EAF6EC', icon: '✅' },
+};
+
+async function checkInteraction(presetName) {
+    const input = document.getElementById('interaction-input');
+    const resultDiv = document.getElementById('interaction-result');
+    const name = (presetName || (input && input.value) || '').trim();
+    if (input && presetName) input.value = presetName;
+    if (!name) {
+        resultDiv.innerHTML = '<p class="sub-text">새로 드시려는 약·영양제 이름을 입력해주세요.</p>';
+        return;
+    }
+    resultDiv.innerHTML = '<p class="sub-text">기존에 드시는 약과 비교해 확인하고 있어요...</p>';
+
+    // 기존 복용약: 내 약(localStorage) 우선, 없으면 데모 시나리오
+    let currentMeds = [];
+    try { currentMeds = JSON.parse(localStorage.getItem('my_medications') || '[]'); } catch (e) { currentMeds = []; }
+    if (!Array.isArray(currentMeds) || currentMeds.length === 0) currentMeds = DEMO_CURRENT_MEDS;
+
+    const payload = {
+        new_product: { name: name, ingredients: EXAMPLE_INGREDIENTS[name] || [] },
+        current_medications: currentMeds,
+        conditions: DEMO_CONDITIONS,
+        resolve_ingredients: true,
+    };
+
+    try {
+        const res = await fetch(`${API_BASE}/dur/check-interaction`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        if (res.ok) {
+            renderInteractionResult(await res.json(), resultDiv);
+            return;
+        }
+    } catch (err) { /* 오프라인 폴백 */ }
+
+    resultDiv.innerHTML = '<p class="sub-text">지금은 확인이 어려워요. 잠시 후 다시 시도하거나, 약사·의사에게 문의하세요.</p>';
+}
+
+function renderInteractionResult(data, resultDiv) {
+    const overall = TIER_STYLE[data.overall_tier] || TIER_STYLE.none;
+    let html = '';
+
+    html += `<div class="interaction-headline" style="border-color:${overall.color}">
+        <div class="ix-head-title">${overall.icon} ${escapeHtml(data.summary || data.headline)}</div>
+        <div class="ix-head-sub">${escapeHtml(data.intro || '')}</div>
+    </div>`;
+
+    if (!data.findings || data.findings.length === 0) {
+        html += `<div class="ix-card" style="border-left-color:var(--safe);background:${TIER_STYLE.none.bg}">
+            <div class="ix-what">✅ 지금 드시는 약과 함께 복용할 때 특별히 확인된 위험은 없어요.</div>
+            <div class="ix-how">그래도 몸에 이상이 느껴지면 약사·의사와 상담하세요.</div>
+        </div>`;
+    } else {
+        data.findings.forEach(f => {
+            const st = TIER_STYLE[f.tier] || TIER_STYLE.info;
+            html += `<div class="ix-card" style="border-left-color:${st.color};background:${st.bg}">
+                <div class="ix-badge" style="background:${st.color}">${st.icon} ${escapeHtml(f.label)}</div>
+                <div class="ix-title">${escapeHtml(f.title)}</div>
+                <div class="ix-row"><span class="ix-key">무엇이</span><span>${escapeHtml(f.what)}</span></div>
+                <div class="ix-row"><span class="ix-key">왜</span><span>${escapeHtml(f.why)}</span></div>
+                <div class="ix-row"><span class="ix-key">어떻게</span><span>${escapeHtml(f.how)}</span></div>
+                <div class="ix-basis">근거: ${escapeHtml(f.basis)}</div>
+            </div>`;
+        });
+    }
+
+    if (data.safety_notice) {
+        html += `<div class="ix-safety">🛡️ ${escapeHtml(data.safety_notice)}</div>`;
+    }
+    if (data.disclaimer) {
+        html += `<p class="drug-demo-note">※ ${escapeHtml(data.disclaimer)}</p>`;
+    }
+    resultDiv.innerHTML = html;
+
+    // 어르신 친화: 가장 중요한 안내를 음성으로
+    if (typeof speak === 'function' && data.findings && data.findings.length) {
+        const top = data.findings[0];
+        speak(`${top.what} ${top.how}`);
+    }
+}
+
+// ==================== 나만의 투약정보 (등록·저장·분석) ====================
+
+function getUserId() {
+    try { return JSON.parse(localStorage.getItem('user_id')) || 1; } catch (e) { return 1; }
+}
+
+function loadMyMeds() {
+    try { return JSON.parse(localStorage.getItem('my_medications') || '[]'); } catch (e) { return []; }
+}
+
+function saveMyMeds(meds) {
+    localStorage.setItem('my_medications', JSON.stringify(meds));
+    // 백엔드 DB에도 동기화 (온라인일 때만, 실패해도 무시)
+    fetch(`${API_BASE}/medications/bulk/${getUserId()}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ medications: meds, replace: true }),
+    }).catch(() => {});
+}
+
+function renderMyMedList() {
+    const meds = loadMyMeds();
+    const wrap = document.getElementById('mymed-list');
+    const countEl = document.getElementById('mymed-count');
+    if (countEl) countEl.textContent = `(${meds.length})`;
+    if (!wrap) return;
+    if (meds.length === 0) {
+        wrap.innerHTML = '<p class="sub-text">아직 등록한 약이 없어요. 위에서 약을 추가해보세요.</p>';
+        return;
+    }
+    const catLabel = { prescription: '전문', otc: '일반', supplement: '영양제' };
+    wrap.innerHTML = meds.map((m, i) => `
+        <div class="mymed-item">
+            <div class="mymed-item-main">
+                <span class="mymed-item-name">${escapeHtml(m.name)}</span>
+                <span class="mymed-item-tag">${catLabel[m.category] || ''}</span>
+            </div>
+            <div class="mymed-item-sub">${escapeHtml([m.ingredient, m.frequency].filter(Boolean).join(' · '))}</div>
+            <button class="mymed-del" onclick="deleteMyMed(${i})" aria-label="삭제">✕</button>
+        </div>`).join('');
+}
+
+function addMyMed() {
+    const name = (document.getElementById('mymed-name').value || '').trim();
+    if (!name) { alert('약 이름을 입력해주세요.'); return; }
+    const med = {
+        name,
+        ingredient: (document.getElementById('mymed-ingredient').value || '').trim(),
+        frequency: (document.getElementById('mymed-frequency').value || '').trim(),
+        category: document.getElementById('mymed-category').value || 'prescription',
+    };
+    // 성분을 입력 안 했고 예시 약이면 자동 보강
+    if (!med.ingredient && typeof EXAMPLE_INGREDIENTS !== 'undefined' && EXAMPLE_INGREDIENTS[name]) {
+        med.ingredient = EXAMPLE_INGREDIENTS[name].join(', ');
+    }
+    const meds = loadMyMeds();
+    meds.push(med);
+    saveMyMeds(meds);
+    renderMyMedList();
+    // 입력창 비우기
+    ['mymed-name', 'mymed-ingredient', 'mymed-frequency'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('mymed-name').focus();
+}
+
+function deleteMyMed(idx) {
+    const meds = loadMyMeds();
+    meds.splice(idx, 1);
+    saveMyMeds(meds);
+    renderMyMedList();
+}
+
+async function analyzeMyMeds() {
+    const meds = loadMyMeds();
+    const resultDiv = document.getElementById('mymed-analysis');
+    if (meds.length < 2) {
+        resultDiv.innerHTML = '<p class="sub-text">약을 2개 이상 등록하면 함께 드셔도 되는지 분석해 드려요.</p>';
+        return;
+    }
+    resultDiv.innerHTML = '<p class="sub-text">등록하신 약들을 서로 비교해 분석하고 있어요...</p>';
+
+    // 1) 백엔드: DB 저장 후 전체 분석
+    try {
+        await fetch(`${API_BASE}/medications/bulk/${getUserId()}`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ medications: meds, replace: true }),
+        });
+        const res = await fetch(`${API_BASE}/medications/analyze/${getUserId()}`);
+        if (res.ok) {
+            renderInteractionResult(await res.json(), resultDiv);
+            return;
+        }
+    } catch (err) { /* 오프라인 폴백 */ }
+
+    resultDiv.innerHTML = '<p class="sub-text">지금은 분석이 어려워요. 인터넷 연결을 확인하거나 잠시 후 다시 시도해주세요.</p>';
 }
 
 // ==================== DUR 분석 ====================

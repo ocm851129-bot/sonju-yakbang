@@ -16,9 +16,48 @@ from app.health_food import get_health_food_info
 import base64
 import json
 import re
+import io
 import httpx
+from PIL import Image, ImageOps
 
 router = APIRouter()
+
+# Vision API(Claude/GPT) 권장 최대 변 길이.
+#   폰 원본 사진은 수 MB·수천 px라 그대로 base64로 보내면 API 용량/크기 한도를 초과해
+#   400 에러가 나고, 그러면 아래 엔드포인트의 except 가 '데모 결과'로 대체해 버린다.
+#   (= 사용자 눈엔 '사진을 올려도 매번 똑같은 예시만 나오는' OCR 미작동으로 보임)
+#   그래서 Vision 에 보내기 전에 반드시 축소·JPEG 재인코딩으로 정규화한다.
+_VISION_MAX_SIDE = 1568
+
+
+def _normalize_image(image_bytes: bytes) -> bytes:
+    """업로드 이미지를 Vision API가 확실히 받아들이는 형태로 정규화한다.
+
+    - EXIF 회전 보정 (세로로 찍은 폰 사진 교정)
+    - RGB 변환 (PNG 투명/CMYK/회색조 대응)
+    - 최대 변 1568px 로 축소 (용량·크기 한도 초과 방지)
+    - JPEG(quality 85) 재인코딩 → media_type 을 항상 image/jpeg 로 통일
+      (기존엔 실제 포맷과 무관하게 media_type 을 jpeg 로 하드코딩해, PNG/HEIC 업로드 시
+       Anthropic API가 거부 → 데모 폴백되던 버그를 함께 해소)
+
+    열 수 없는 포맷(예: HEIC) 등으로 실패하면 원본을 그대로 돌려준다.
+    """
+    try:
+        img = Image.open(io.BytesIO(image_bytes))
+        img = ImageOps.exif_transpose(img)
+        if img.mode != "RGB":
+            img = img.convert("RGB")
+        w, h = img.size
+        longest = max(w, h)
+        if longest > _VISION_MAX_SIDE:
+            scale = _VISION_MAX_SIDE / float(longest)
+            img = img.resize((max(1, int(w * scale)), max(1, int(h * scale))), Image.LANCZOS)
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG", quality=85, optimize=True)
+        return buf.getvalue()
+    except Exception as e:
+        print(f"[OCR] 이미지 정규화 실패({type(e).__name__}) → 원본 그대로 사용")
+        return image_bytes
 client = OpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
 
 # Claude Vision (OCR 2차 구조화 폴백). OpenAI 크레딧이 없어도 ANTHROPIC_API_KEY만 있으면
@@ -353,6 +392,7 @@ async def scan_prescription(
     """
     try:
         image_content = await image.read()
+        image_content = _normalize_image(image_content)  # 축소·JPEG화 (대용량/비JPEG 사진 대응)
         ocr_engine = "gpt-vision"
         raw_text = ""
 
@@ -453,6 +493,7 @@ async def scan_product(
     """
     try:
         image_content = await image.read()
+        image_content = _normalize_image(image_content)  # 축소·JPEG화 (대용량/비JPEG 사진 대응)
         ocr_engine = "gpt-vision"
 
         raw_text = await google_vision_ocr(image_content)
