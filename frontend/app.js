@@ -9,6 +9,32 @@ let mediaRecorder = null;
 let audioChunks = [];
 let isRecording = false;
 
+// ==================== 글씨 크기 조절 (고령자 접근성) ====================
+// 프로필 화면의 슬라이더(80%~150%)로 앱 전체 본문 글씨 크기를 조절한다.
+// CSS 변수 --font-scale 를 바꾸면 --font-size-* 가 일괄 확대/축소된다.
+const FONT_SCALE_KEY = 'sonju_font_scale';
+const FONT_SCALE_MIN = 80;
+const FONT_SCALE_MAX = 150;
+
+function setFontScale(percent) {
+    let p = parseInt(percent, 10);
+    if (isNaN(p)) p = 100;
+    p = Math.max(FONT_SCALE_MIN, Math.min(FONT_SCALE_MAX, p));
+    document.documentElement.style.setProperty('--font-scale', (p / 100).toString());
+    const valueEl = document.getElementById('font-size-value');
+    if (valueEl) valueEl.textContent = p + '%';
+    const rangeEl = document.getElementById('font-size-range');
+    if (rangeEl && parseInt(rangeEl.value, 10) !== p) rangeEl.value = p;
+    try { localStorage.setItem(FONT_SCALE_KEY, String(p)); } catch (e) { /* ignore */ }
+}
+
+// 저장된 글씨 크기를 불러와 적용(슬라이더 위치·배율 동기화). 페이지 로드 시 호출.
+function restoreFontScale() {
+    let saved = 100;
+    try { saved = parseInt(localStorage.getItem(FONT_SCALE_KEY), 10) || 100; } catch (e) { saved = 100; }
+    setFontScale(saved);
+}
+
 // ==================== 네비게이션 ====================
 
 function navigate(screen) {
@@ -1146,6 +1172,9 @@ function showNotification(message) {
 // ==================== 초기화 ====================
 
 function init() {
+    // 저장된 글씨 크기 복원 (가장 먼저: 화면이 그려지기 전에 배율 적용)
+    restoreFontScale();
+
     // 상단 날짜/시간 표시
     updateHeaderDateTime();
     setInterval(updateHeaderDateTime, 60000); // 1분마다 업데이트

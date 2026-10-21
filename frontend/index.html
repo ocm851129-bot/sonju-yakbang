@@ -481,6 +481,22 @@
                     <h2>👤 내 정보</h2>
                 </div>
                 <div class="profile-container">
+                    <!-- 글씨 크기 조절 (로그인 여부와 무관하게 항상 표시) -->
+                    <div class="font-size-setting">
+                        <div class="font-size-label">
+                            <span>🔤 글씨 크기</span>
+                            <span id="font-size-value" class="font-size-value">100%</span>
+                        </div>
+                        <div class="font-size-row">
+                            <span class="font-size-min" aria-hidden="true">가</span>
+                            <input type="range" id="font-size-range" min="80" max="150" step="10"
+                                   value="100" oninput="setFontScale(this.value)"
+                                   aria-label="글씨 크기 조절 (80에서 150퍼센트)" />
+                            <span class="font-size-max" aria-hidden="true">가</span>
+                        </div>
+                        <p class="font-size-hint">오른쪽으로 옮기면 글씨가 커져요. (80%~150%)</p>
+                    </div>
+
                     <!-- 로그인 상태일 때: 프로필 표시 -->
                     <div id="profile-loggedin" style="display:none;">
                         <div class="profile-card">
