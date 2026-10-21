@@ -85,12 +85,17 @@ def send_message(request: ChatRequest, db: Session = Depends(get_db)):
     ]
     cond_list = ", ".join(conditions) or "없음"
 
+    gender_kr = {"male": "남성", "female": "여성", "M": "남성", "F": "여성"}.get(
+        (user.gender or "").strip(), "미상"
+    )
     user_context = f"""
 이름: {user.name}
+성별: {gender_kr}
 생년월일: {user.birth_date}
 현재 복용약: {med_list}
 앓고 계신 질환(기저질환): {cond_list}
-"""
+
+※ 호칭은 '{user.name} 어르신' 또는 그냥 '어르신'으로 불러 주세요. 성별이 '미상'이면 '할아버지/할머니'로 추측하지 말고 '어르신'이라고 하세요."""
 
     # 병용확인: 어르신이 '새 약·영양제를 함께 먹어도 되는지' 물으면,
     # 기존 복용약 + 기저질환과 비교해 실제 상호작용을 점검하거나, 제품 확인을 요청한다.
