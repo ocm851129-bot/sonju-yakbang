@@ -17,9 +17,49 @@ DUR_API_KEY(공공데이터포털 인증키)를 그대로 사용합니다. 키�
 """
 import re
 import html
+import time
+import copy
 import asyncio
 import httpx
 from typing import Optional
+
+# ==================== 통합 조회 결과 캐시 ====================
+# data.go.kr(허가정보·e약은요)은 간헐적으로 느려 효능(effect) 호출이 타임아웃되곤 한다.
+# 그래서 '효능까지 받은 완성 결과'는 캐시해 두고, 다음부터는 즉시·일관되게 돌려준다.
+# (의약품 정보는 거의 바뀌지 않으므로 하루 TTL로 충분)
+_FULLINFO_CACHE: dict = {}          # key -> (expire_ts, result)
+_FULLINFO_TTL = 60 * 60 * 24        # 24시간
+_FULLINFO_MAX = 1000
+
+
+def _fi_quality(r: dict) -> int:
+    """결과 완성도: 효능 있으면 2, 매칭만 되면 1, 아니면 0."""
+    if r.get("effect") or r.get("easy_effect"):
+        return 2
+    return 1 if r.get("matched") else 0
+
+
+def _fi_cache_get(key) -> Optional[dict]:
+    v = _FULLINFO_CACHE.get(key)
+    if not v:
+        return None
+    exp, res = v
+    if exp < time.time():
+        _FULLINFO_CACHE.pop(key, None)
+        return None
+    return copy.deepcopy(res)
+
+
+def _fi_cache_put(key, res: dict) -> None:
+    # 효능까지 있는 '완성 결과'이고 데모가 아닐 때만 캐시(실데이터 우선).
+    if res.get("is_demo") or _fi_quality(res) < 2:
+        return
+    cur = _FULLINFO_CACHE.get(key)
+    if cur and cur[0] >= time.time() and _fi_quality(cur[1]) >= _fi_quality(res):
+        return
+    if len(_FULLINFO_CACHE) > _FULLINFO_MAX:
+        _FULLINFO_CACHE.clear()
+    _FULLINFO_CACHE[key] = (time.time() + _FULLINFO_TTL, copy.deepcopy(res))
 import xml.etree.ElementTree as ET
 from app.config import (
     DRUG_PERMIT_API_KEY,
@@ -102,21 +142,26 @@ async def search_drug_permission(item_name: str) -> Optional[dict]:
         "numOfRows": 3,
         "pageNo": 1,
     }
-    try:
-        async with httpx.AsyncClient(timeout=12) as client:
-            resp = await client.get(url, params=params)
-            if resp.status_code != 200:
-                return None
-            data = resp.json()
-            items = (data.get("body", {}) or {}).get("items", [])
-            if not items:
-                return None
-            # items 원소가 {"item": {...}} 로 감싸져 오는 경우 처리
-            first = items[0]
-            item = first.get("item", first) if isinstance(first, dict) else first
-            return _normalize_permit_item(item)
-    except Exception:
-        return None
+    # data.go.kr이 간헐적으로 느려 효능 조회가 비는 일이 잦아 1회 재시도한다.
+    for attempt in range(2):
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                resp = await client.get(url, params=params)
+                if resp.status_code != 200:
+                    continue
+                data = resp.json()
+                items = (data.get("body", {}) or {}).get("items", [])
+                if not items:
+                    return None  # 정상 응답인데 결과 0건이면 재시도 의미 없음
+                first = items[0]
+                item = first.get("item", first) if isinstance(first, dict) else first
+                return _normalize_permit_item(item)
+        except Exception:
+            if attempt == 0:
+                await asyncio.sleep(0.4)
+                continue
+            return None
+    return None
 
 
 def _normalize_permit_item(item: dict) -> dict:
@@ -165,32 +210,37 @@ async def search_easy_drug(item_name: str) -> Optional[dict]:
         "numOfRows": 3,
         "pageNo": 1,
     }
-    try:
-        async with httpx.AsyncClient(timeout=12) as client:
-            resp = await client.get(url, params=params)
-            if resp.status_code != 200:
-                return None
-            data = resp.json()
-            items = (data.get("body", {}) or {}).get("items", [])
-            if not items:
-                return None
-            item = items[0]
-            item = item.get("item", item) if isinstance(item, dict) else item
-            return {
-                "item_name": (item.get("itemName") or "").strip(),
-                "company": (item.get("entpName") or "").strip(),
-                "easy_effect": _truncate(item.get("efcyQesitm") or ""),
-                "easy_usage": _truncate(item.get("useMethodQesitm") or ""),
-                "easy_warn": _truncate(item.get("atpnWarnQesitm") or ""),
-                "easy_caution": _truncate(item.get("atpnQesitm") or ""),
-                "easy_interaction": _truncate(item.get("intrcQesitm") or ""),
-                "easy_side_effect": _truncate(item.get("seQesitm") or ""),
-                "easy_storage": _truncate(item.get("depositMethodQesitm") or "", 200),
-                "image_url": (item.get("itemImage") or "").strip(),
-                "source": "식약처 e약은요",
-            }
-    except Exception:
-        return None
+    for attempt in range(2):
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                resp = await client.get(url, params=params)
+                if resp.status_code != 200:
+                    continue
+                data = resp.json()
+                items = (data.get("body", {}) or {}).get("items", [])
+                if not items:
+                    return None
+                item = items[0]
+                item = item.get("item", item) if isinstance(item, dict) else item
+                return {
+                    "item_name": (item.get("itemName") or "").strip(),
+                    "company": (item.get("entpName") or "").strip(),
+                    "easy_effect": _truncate(item.get("efcyQesitm") or ""),
+                    "easy_usage": _truncate(item.get("useMethodQesitm") or ""),
+                    "easy_warn": _truncate(item.get("atpnWarnQesitm") or ""),
+                    "easy_caution": _truncate(item.get("atpnQesitm") or ""),
+                    "easy_interaction": _truncate(item.get("intrcQesitm") or ""),
+                    "easy_side_effect": _truncate(item.get("seQesitm") or ""),
+                    "easy_storage": _truncate(item.get("depositMethodQesitm") or "", 200),
+                    "image_url": (item.get("itemImage") or "").strip(),
+                    "source": "식약처 e약은요",
+                }
+        except Exception:
+            if attempt == 0:
+                await asyncio.sleep(0.4)
+                continue
+            return None
+    return None
 
 
 # ==================== 3차: 로컬 데모 데이터 (고령자 다빈도 약) ====================
@@ -296,6 +346,12 @@ async def get_drug_full_info(item_name: str, ingredient: str = "") -> dict:
       easy_* (쉬운말 설명), image_url, sources(list), is_demo(bool)
     """
     query = _clean_item_name(item_name)
+
+    # 캐시: 효능까지 받은 완성 결과가 있으면 즉시 반환(효능 텍스트 일관성 확보).
+    cache_key = (query.lower(), (ingredient or "").strip().lower())
+    cached = _fi_cache_get(cache_key)
+    if cached is not None:
+        return cached
 
     # 허가정보·e약은요·낱알식별을 병렬로 조회한다(순차 호출 시 각 12초라 느리고,
     # 외부 API가 느리면 타임아웃으로 매칭 실패 → '검색 안 됨'처럼 보이던 문제 해소).
@@ -429,4 +485,6 @@ async def get_drug_full_info(item_name: str, ingredient: str = "") -> dict:
             result["is_demo"] = True
             result["sources"] = [demo["source"]]
 
+    # 효능까지 받은 완성 결과면 캐시에 저장(다음부터 즉시·일관 제공)
+    _fi_cache_put(cache_key, result)
     return result
