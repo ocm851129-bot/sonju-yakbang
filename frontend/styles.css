@@ -1913,6 +1913,49 @@ html.ios .app-main {
     background: #FDECEA; color: var(--danger); font-size: 16px; font-weight: 700; border: none;
 }
 
+/* ==================== 분석 진행 표시기 (처방전/제품 OCR) ==================== */
+.analyze-progress {
+    text-align: center;
+    padding: 20px 16px;
+}
+.analyze-title {
+    font-size: var(--font-size-lg);
+    font-weight: 800;
+    color: var(--text-primary);
+    margin-bottom: 16px;
+}
+.analyze-bar {
+    height: 16px;
+    border-radius: 999px;
+    background: var(--border);
+    overflow: hidden;
+    margin: 0 auto 14px;
+    max-width: 360px;
+}
+.analyze-bar-fill {
+    height: 100%;
+    width: 8%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, var(--primary-light), var(--primary));
+    transition: width 0.3s ease;
+}
+.analyze-stage {
+    font-size: var(--font-size-md);
+    font-weight: 700;
+    color: var(--primary-dark);
+    margin-bottom: 6px;
+}
+.analyze-elapsed {
+    font-size: var(--font-size-md);
+    font-weight: 800;
+    color: var(--text-primary);
+    margin-bottom: 10px;
+}
+.analyze-hint {
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+}
+
 /* ==================== 글씨 크기 조절 (헤더: 긴급전화 옆) ==================== */
 .font-size-ctrl {
     display: inline-flex; align-items: center; gap: 2px;

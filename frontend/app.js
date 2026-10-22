@@ -167,6 +167,48 @@ async function processVoice(audioBlob) {
 
 // ==================== 처방전 OCR ====================
 
+// 분석 진행 표시기: 서버 OCR은 한 번의 AI 호출이라 정확한 %는 알 수 없으므로,
+// 단계별 안내 메시지 + 진행 바(90%까지 서서히 채움) + 경과 시간으로
+// "멈춘 게 아니라 분석 중"임을 어르신이 알 수 있게 보여준다.
+function startAnalyzeProgress(container, title) {
+    const stages = [
+        '📤 사진을 올리는 중이에요…',
+        '🔍 AI가 글자를 읽는 중이에요…',
+        '💊 약 정보를 확인하는 중이에요…',
+        '📋 결과를 정리하는 중이에요…',
+    ];
+    const started = Date.now();
+    let pct = 8;
+    let stageIdx = -1;
+    container.innerHTML =
+        '<div class="analyze-progress">' +
+          '<p class="analyze-title">' + title + '</p>' +
+          '<div class="analyze-bar"><div class="analyze-bar-fill" id="analyze-bar-fill"></div></div>' +
+          '<p class="analyze-stage" id="analyze-stage">' + stages[0] + '</p>' +
+          '<p class="analyze-elapsed" id="analyze-elapsed">⏱ 0초</p>' +
+          '<p class="analyze-hint">보통 5~15초 걸려요. 처음 한 번은 조금 더 걸릴 수 있어요.</p>' +
+        '</div>';
+    const fill = container.querySelector('#analyze-bar-fill');
+    const stageEl = container.querySelector('#analyze-stage');
+    const elapsedEl = container.querySelector('#analyze-elapsed');
+    if (fill) fill.style.width = pct + '%';
+    const timer = setInterval(() => {
+        const secs = Math.floor((Date.now() - started) / 1000);
+        // 90%까지 서서히(처음 빠르게, 뒤로 갈수록 천천히) 채운다. 100%는 완료 때만.
+        pct = Math.min(90, pct + Math.max(0.5, (90 - pct) * 0.06));
+        if (fill) fill.style.width = pct.toFixed(0) + '%';
+        if (elapsedEl) elapsedEl.textContent = '⏱ ' + secs + '초';
+        const idx = secs < 2 ? 0 : secs < 6 ? 1 : secs < 12 ? 2 : 3;
+        if (idx !== stageIdx) { stageIdx = idx; if (stageEl) stageEl.textContent = stages[idx]; }
+    }, 300);
+    return {
+        done() {
+            clearInterval(timer);
+            if (fill) fill.style.width = '100%';
+        },
+    };
+}
+
 async function handleImage(event) {
     const file = event.target.files[0];
     if (!file) return;
@@ -174,7 +216,7 @@ async function handleImage(event) {
     const resultDiv = document.getElementById('ocr-result');
     const medsDiv = document.getElementById('ocr-medications');
     resultDiv.style.display = 'block';
-    medsDiv.innerHTML = '<p>💊 처방전을 분석하고 있습니다...</p>';
+    const progress = startAnalyzeProgress(medsDiv, '💊 처방전을 분석하고 있어요');
 
     // 1) 백엔드(식약처 API) 우선 시도 — 서버가 있으면 가장 정확
     try {
@@ -187,6 +229,7 @@ async function handleImage(event) {
         if (response.ok) {
             const data = await response.json();
             if (data && (data.medications || []).length > 0) {
+                progress.done();
                 saveRecognizedMeds(data.medications);
                 renderOCRResult(data);
                 return;
@@ -197,6 +240,7 @@ async function handleImage(event) {
     }
 
     // 2) 백엔드 불가/실패 시 → 기기 내(오프라인) OCR 실행
+    progress.done();
     await clientSideOCR(file, medsDiv);
 }
 
@@ -209,7 +253,7 @@ async function handleProductScan(event) {
     const resultDiv = document.getElementById('ocr-result');
     const medsDiv = document.getElementById('ocr-medications');
     resultDiv.style.display = 'block';
-    medsDiv.innerHTML = '<p>🌿 제품을 분석하고 있습니다...</p>';
+    const progress = startAnalyzeProgress(medsDiv, '🌿 제품을 분석하고 있어요');
 
     // 1) 백엔드(통합 스캔) 우선
     try {
@@ -222,6 +266,7 @@ async function handleProductScan(event) {
         if (response.ok) {
             const data = await response.json();
             if (data && (data.medications || []).length > 0) {
+                progress.done();
                 saveRecognizedMeds(data.medications);
                 renderOCRResult(data);
                 return;
@@ -232,6 +277,7 @@ async function handleProductScan(event) {
     }
 
     // 2) 백엔드 불가/실패 시 → 기기 내(오프라인) OCR (의약품+건강기능식품 DB)
+    progress.done();
     await clientSideOCR(file, medsDiv);
 }
 
