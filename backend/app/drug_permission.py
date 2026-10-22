@@ -17,6 +17,7 @@ DUR_API_KEY(공공데이터포털 인증키)를 그대로 사용합니다. 키�
 """
 import re
 import html
+import asyncio
 import httpx
 from typing import Optional
 import xml.etree.ElementTree as ET
@@ -268,6 +269,24 @@ def _lookup_demo(item_name: str, ingredient: str = "") -> Optional[dict]:
 
 # ==================== 오케스트레이션 ====================
 
+async def _noop_none():
+    """gather 자리맞춤용: 아무 것도 안 하고 None 반환."""
+    return None
+
+
+def _first_ingredient(ingredient: str) -> str:
+    """성분 문자열에서 2차 검색에 쓸 대표 성분명 하나를 뽑는다.
+    예) '아세트아미노펜(Acetaminophen) 325mg' → '아세트아미노펜'
+        '암로디핀베실산염/발사르탄' → '암로디핀베실산염'
+    """
+    if not ingredient:
+        return ""
+    head = re.split(r"[\/,;]", ingredient.strip())[0]
+    head = re.sub(r"[\(（].*?[\)）]", "", head)          # 괄호(영문/용량) 제거
+    head = re.sub(r"\b\d+(\.\d+)?\s*(mg|mcg|㎍|g|밀리그람|밀리그램|IU)\b", "", head, flags=re.I)
+    return head.strip()
+
+
 async def get_drug_full_info(item_name: str, ingredient: str = "") -> dict:
     """약품명을 받아 허가정보 + e약은요 + 데모를 조합한 통합 정보를 반환한다.
 
@@ -278,17 +297,25 @@ async def get_drug_full_info(item_name: str, ingredient: str = "") -> dict:
     """
     query = _clean_item_name(item_name)
 
-    permit = await search_drug_permission(query)
-    easy = await search_easy_drug(query)
-    identity = await search_identity_by_name(query)
+    # 허가정보·e약은요·낱알식별을 병렬로 조회한다(순차 호출 시 각 12초라 느리고,
+    # 외부 API가 느리면 타임아웃으로 매칭 실패 → '검색 안 됨'처럼 보이던 문제 해소).
+    permit, easy, identity = await asyncio.gather(
+        search_drug_permission(query),
+        search_easy_drug(query),
+        search_identity_by_name(query),
+    )
 
     if not permit and not easy:
-        # 원본 이름 그대로 한 번 더 시도 (정제로 인해 놓친 경우)
+        # 원본 이름 그대로 한 번 더 시도 (정제로 인해 놓친 경우) — 역시 병렬로
         if query != item_name.strip():
-            permit = await search_drug_permission(item_name.strip())
-            easy = await search_easy_drug(item_name.strip())
-            if not identity:
-                identity = await search_identity_by_name(item_name.strip())
+            permit2, easy2, identity2 = await asyncio.gather(
+                search_drug_permission(item_name.strip()),
+                search_easy_drug(item_name.strip()),
+                search_identity_by_name(item_name.strip()) if not identity else _noop_none(),
+            )
+            permit = permit or permit2
+            easy = easy or easy2
+            identity = identity or identity2
 
     result = {
         "matched": False,
@@ -366,6 +393,32 @@ async def get_drug_full_info(item_name: str, ingredient: str = "") -> dict:
         if not result["item_name"] and identity.get("item_name"):
             result["item_name"] = identity["item_name"]
         result["sources"].append(identity["source"])
+
+    # 상품명 보강: 낱알식별 등으로 '성분명'은 알아냈지만 효능 설명이 비어 있으면,
+    # 그 성분명으로 2차 검색해 효능·쉬운말 설명을 채운다.
+    #   예) '타이레놀' → (낱알식별로 아세트아미노펜 확인) → '아세트아미노펜'으로 효능 보강
+    ing_for_search = _first_ingredient(result.get("ingredient") or ingredient)
+    if (result["matched"] and ing_for_search and ing_for_search != query
+            and not result["effect"] and not result["easy_effect"]):
+        try:
+            permit3, easy3 = await asyncio.gather(
+                search_drug_permission(ing_for_search),
+                search_easy_drug(ing_for_search),
+            )
+        except Exception:
+            permit3, easy3 = None, None
+        if permit3:
+            for k in ("effect", "usage", "caution", "class_name", "etc_otc"):
+                if permit3.get(k) and not result.get(k):
+                    result[k] = permit3[k]
+            if permit3.get("source") and permit3["source"] not in result["sources"]:
+                result["sources"].append(permit3["source"])
+        if easy3:
+            for k in ("easy_effect", "easy_usage", "easy_warn", "easy_caution"):
+                if easy3.get(k) and not result.get(k):
+                    result[k] = easy3[k]
+            if easy3.get("source") and easy3["source"] not in result["sources"]:
+                result["sources"].append(easy3["source"])
 
     # 폴백: 데모 데이터
     if not result["matched"]:

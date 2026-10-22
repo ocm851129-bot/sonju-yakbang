@@ -21,6 +21,30 @@ from app.dur_database import (
 from app.interaction_engine import check_interaction
 from app.drug_permission import get_drug_full_info
 import json
+import asyncio
+
+# DUR 외부 API 폭주 방지:
+#   병용금기 검사는 약 쌍마다 호출(O(N^2))이라 약이 많으면 수천 번 호출 → 150초 초과.
+#   그래서 (1) 서로 다른 약만 추려 상한을 두고, (2) 외부 API 전체에 시간 예산을 둔다.
+#   예산을 넘으면 외부 API는 건너뛰고 빠른 로컬 규칙 엔진 결과로 응답한다.
+MAX_DUR_MEDS = 15
+DUR_API_BUDGET_SEC = 12.0
+_DUR_CONCURRENCY = 6
+
+
+def _dedupe_cap_meds(medications: list) -> list:
+    """같은 이름의 약(중복)을 제거하고 최대 MAX_DUR_MEDS 개로 제한한다."""
+    seen = set()
+    out = []
+    for m in medications:
+        key = (getattr(m, "name", "") or "").strip()
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        out.append(m)
+        if len(out) >= MAX_DUR_MEDS:
+            break
+    return out
 
 router = APIRouter()
 client = OpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
@@ -132,16 +156,25 @@ async def analyze_dur(user_id: int, db: Session = Depends(get_db)):
     alerts = []
     data_source = "local_rule"
 
-    # ===== 1차: 공공데이터포털 DUR API 조회 =====
+    # ===== 1차: 공공데이터포털 DUR API 조회 (중복제거·상한·시간예산) =====
     if DUR_API_KEY:
-        api_alerts = await _check_dur_api(medications)
-        if api_alerts:
-            alerts.extend(api_alerts)
-            data_source = "공공데이터포털 DUR API"
-
-        # 노인주의 약물 조회
-        elderly_alerts = await _check_elderly_caution(medications)
-        alerts.extend(elderly_alerts)
+        dur_meds = _dedupe_cap_meds(medications)
+        try:
+            api_alerts, elderly_alerts = await asyncio.wait_for(
+                asyncio.gather(
+                    _check_dur_api(dur_meds),
+                    _check_elderly_caution(dur_meds),
+                ),
+                timeout=DUR_API_BUDGET_SEC,
+            )
+            if api_alerts:
+                alerts.extend(api_alerts)
+                data_source = "공공데이터포털 DUR API"
+            alerts.extend(elderly_alerts)
+        except asyncio.TimeoutError:
+            print(f"[DUR] 외부 API 시간예산({DUR_API_BUDGET_SEC}s) 초과 → 로컬 규칙 엔진으로 대체")
+        except Exception as e:
+            print(f"[DUR] 외부 API 조회 실패({type(e).__name__}) → 로컬 규칙 엔진으로 대체")
 
     # ===== 2차: 로컬 Rule Engine (API 결과 보완) =====
     local_alerts = _check_local_rules(medications)
@@ -204,34 +237,47 @@ async def analyze_dur(user_id: int, db: Session = Depends(get_db)):
 
 
 async def _check_dur_api(medications: list) -> list:
-    """공공데이터포털 DUR API로 병용금기 조회"""
-    alerts = []
-    for i, med_a in enumerate(medications):
-        for j, med_b in enumerate(medications):
-            if i >= j:
-                continue
-            results = await search_dur_contraindication(
-                med_a.ingredient or med_a.name,
-                med_b.ingredient or med_b.name,
-            )
-            for r in results:
-                alerts.append({
-                    "type": "contraindication",
-                    "severity": "high",
-                    "medication_a": med_a.name,
-                    "medication_b": med_b.name,
-                    "description": r.get("PROHBT_CONTENT", "병용금기 약물입니다"),
-                    "recommendation": "의사 또는 약사와 상담하세요",
-                    "source": "DUR_API",
-                })
-    return alerts
+    """공공데이터포털 DUR API로 병용금기 조회 (약 쌍을 병렬 조회)."""
+    sem = asyncio.Semaphore(_DUR_CONCURRENCY)
+
+    async def _one_pair(med_a, med_b):
+        async with sem:
+            try:
+                results = await search_dur_contraindication(
+                    med_a.ingredient or med_a.name,
+                    med_b.ingredient or med_b.name,
+                )
+            except Exception:
+                return []
+        return [{
+            "type": "contraindication",
+            "severity": "high",
+            "medication_a": med_a.name,
+            "medication_b": med_b.name,
+            "description": r.get("PROHBT_CONTENT", "병용금기 약물입니다"),
+            "recommendation": "의사 또는 약사와 상담하세요",
+            "source": "DUR_API",
+        } for r in results]
+
+    pairs = [(medications[i], medications[j])
+             for i in range(len(medications)) for j in range(i + 1, len(medications))]
+    nested = await asyncio.gather(*[_one_pair(a, b) for a, b in pairs])
+    return [alert for sub in nested for alert in sub]
 
 
 async def _check_elderly_caution(medications: list) -> list:
-    """노인주의 약물 조회"""
+    """노인주의 약물 조회 (약별 병렬 조회)."""
+    sem = asyncio.Semaphore(_DUR_CONCURRENCY)
+
+    async def _one(med):
+        async with sem:
+            try:
+                return med, await search_dur_elderly_caution(med.ingredient or med.name)
+            except Exception:
+                return med, []
+
     alerts = []
-    for med in medications:
-        results = await search_dur_elderly_caution(med.ingredient or med.name)
+    for med, results in await asyncio.gather(*[_one(m) for m in medications]):
         for r in results:
             alerts.append({
                 "type": "elderly_caution",
