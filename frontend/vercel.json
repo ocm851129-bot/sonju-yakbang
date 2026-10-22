@@ -5,7 +5,7 @@
   "redirects": [
     {
       "source": "/:path*",
-      "has": [{ "type": "host", "value": ".*\\.vercel\\.app" }],
+      "has": [{ "type": "host", "value": "(?<vhost>.*\\.vercel\\.app)" }],
       "destination": "https://xn--vh3bv2hfxdjse.kr/:path*",
       "permanent": true
     }
