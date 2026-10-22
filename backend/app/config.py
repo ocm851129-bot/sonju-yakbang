@@ -15,11 +15,11 @@ ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001")
 
 # 처방전·약봉투 OCR(이미지 인식) 전용 모델.
 #   상담(ANTHROPIC_MODEL=haiku)과 달리, 사진 속 작은 한글·숫자를 정확히 읽어야 하므로
-#   고해상도 비전을 지원하는 상위 모델(Opus 4.8)을 기본값으로 쓴다.
-#   비용을 낮추려면 ANTHROPIC_VISION_MODEL=claude-sonnet-5 로 바꿔도 인식률이 충분히 높다.
+#   고해상도 비전을 지원하는 상위 모델을 쓴다. 기본값은 정확도·비용 균형이 가장 좋은
+#   Sonnet 5. 최고 정확도가 필요하면 ANTHROPIC_VISION_MODEL=claude-opus-4-8 로 올리면 된다.
 #   ※ 키 권한 문제 등으로 이 모델 호출이 실패하면 ocr.py가 자동으로 ANTHROPIC_MODEL(haiku)로
 #     폴백하므로, 접근 권한이 없어도 OCR이 데모로 떨어지지 않는다.
-ANTHROPIC_VISION_MODEL = os.getenv("ANTHROPIC_VISION_MODEL", "claude-opus-4-8")
+ANTHROPIC_VISION_MODEL = os.getenv("ANTHROPIC_VISION_MODEL", "claude-sonnet-5")
 
 # DB 경로: 실행 디렉터리와 무관하게 항상 backend/sonju_yakbang.db 를 사용하도록 절대경로로 고정한다.
 # (상대경로면 uvicorn을 다른 폴더에서 띄웠을 때 빈 DB가 새로 생겨 데이터가 사라진 것처럼 보이는 문제가 있음)
