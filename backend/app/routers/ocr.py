@@ -9,7 +9,7 @@ from app.database import get_db
 from app.models import HealthRecord, Medication
 from app.config import (
     OPENAI_API_KEY, GOOGLE_VISION_API_KEY, CLOVA_OCR_SECRET, CLOVA_OCR_URL,
-    ANTHROPIC_API_KEY, ANTHROPIC_MODEL,
+    ANTHROPIC_API_KEY, ANTHROPIC_MODEL, ANTHROPIC_VISION_MODEL,
 )
 from app.drug_permission import get_drug_full_info
 from app.health_food import get_health_food_info
@@ -27,7 +27,11 @@ router = APIRouter()
 #   400 에러가 나고, 그러면 아래 엔드포인트의 except 가 '데모 결과'로 대체해 버린다.
 #   (= 사용자 눈엔 '사진을 올려도 매번 똑같은 예시만 나오는' OCR 미작동으로 보임)
 #   그래서 Vision 에 보내기 전에 반드시 축소·JPEG 재인코딩으로 정규화한다.
-_VISION_MAX_SIDE = 1568
+#   값은 고해상도 비전(Opus 4.8/Sonnet 5)의 최대 장변 2576px에 맞춰, 처방전의 작은
+#   한글·숫자가 뭉개지지 않도록 넉넉히 둔다. (haiku 등 1568px 모델은 서버가 자동 축소하므로
+#   더 큰 이미지를 보내도 에러 없이 무시된다.) 품질도 90으로 올려 글자 테두리를 선명하게 유지.
+_VISION_MAX_SIDE = 2576
+_VISION_JPEG_QUALITY = 90
 
 
 def _normalize_image(image_bytes: bytes) -> bytes:
@@ -53,7 +57,7 @@ def _normalize_image(image_bytes: bytes) -> bytes:
             scale = _VISION_MAX_SIDE / float(longest)
             img = img.resize((max(1, int(w * scale)), max(1, int(h * scale))), Image.LANCZOS)
         buf = io.BytesIO()
-        img.save(buf, format="JPEG", quality=85, optimize=True)
+        img.save(buf, format="JPEG", quality=_VISION_JPEG_QUALITY, optimize=True)
         return buf.getvalue()
     except Exception as e:
         print(f"[OCR] 이미지 정규화 실패({type(e).__name__}) → 원본 그대로 사용")
@@ -252,8 +256,14 @@ def _vision_system_prompt(context_msg: str = "") -> str:
     """처방전·의약품·건강기능식품 구조화용 공통 시스템 프롬프트 (GPT·Claude 공용)."""
     return f"""당신은 한국의 처방전·의약품·건강기능식품을 정확하게 분석하는 AI 약사입니다.
 이미지는 (1) 병원 처방전, (2) 약 포장/약봉투, 또는 (3) 건강기능식품·영양제 제품/라벨일 수 있습니다.
-이미지와 OCR 텍스트를 참고하여 각 품목을 분류하고 구조화된 정보를 추출하세요.
-정보가 불명확하면 빈 문자열로 남기고, 지어내지 마세요.
+
+[판독 지침 — 인식률이 중요합니다]
+- 먼저 이미지 속 글자를 한 자 한 자 꼼꼼히 읽으세요. 특히 작은 글씨, 흐릿한 부분, 손글씨,
+  약품명 끝의 용량(mg·정·㎍), 1일 복용 횟수·시점을 놓치지 마세요.
+- 비슷한 글자/숫자(0과 O, 1과 l, 5와 S, mg와 mcg 등)를 혼동하지 말고 문맥으로 구분하세요.
+- 사진이 기울었거나 일부만 보여도, 읽히는 범위에서 최대한 정확히 추출하세요.
+- 이미지와 OCR 텍스트를 함께 참고하되, 실제로 보이는 글자를 우선하세요.
+- 정보가 정말 불명확하면 빈 문자열로 남기고, 절대 지어내지 마세요.
 
 각 품목의 product_type 을 다음 중 하나로 정확히 분류하세요:
   - "prescription"              : 처방전으로 받는 전문의약품
@@ -329,16 +339,14 @@ async def gpt_vision_structure(image_bytes: bytes, raw_text: str = "") -> dict:
     return json.loads(response.choices[0].message.content)
 
 
-def claude_vision_structure(image_bytes: bytes, raw_text: str = "") -> dict:
-    """Claude Vision으로 처방전·제품 정보를 구조화 (GPT Vision 폴백).
+def _claude_vision_call(model: str, base64_image: str, context_msg: str) -> dict:
+    """지정한 Claude 모델로 한 번 Vision 구조화를 호출한다.
 
-    OpenAI 크레딧이 없어도 ANTHROPIC_API_KEY만 있으면 사진을 실제로 인식한다.
+    ※ temperature 를 넘기지 않는다: Opus 4.8/Sonnet 5 등 상위 모델은 temperature 를
+      받으면 400 에러가 나므로(그러면 데모로 폴백됨), 기본값에 맡긴다.
     """
-    base64_image = base64.b64encode(image_bytes).decode("utf-8")
-    context_msg = f"\n\n[참고: OCR로 추출된 원본 텍스트]\n{raw_text[:2000]}" if raw_text else ""
-
     resp = anthropic_client.messages.create(
-        model=ANTHROPIC_MODEL,
+        model=model,
         max_tokens=2000,
         system=_vision_system_prompt(context_msg)
         + "\n\n반드시 설명 없이 JSON 객체 하나만 출력하세요.",
@@ -352,6 +360,27 @@ def claude_vision_structure(image_bytes: bytes, raw_text: str = "") -> dict:
     )
     text = "".join(b.text for b in resp.content if getattr(b, "type", "") == "text")
     return _extract_json(text)
+
+
+def claude_vision_structure(image_bytes: bytes, raw_text: str = "") -> dict:
+    """Claude Vision으로 처방전·제품 정보를 구조화 (GPT Vision 폴백).
+
+    OpenAI 크레딧이 없어도 ANTHROPIC_API_KEY만 있으면 사진을 실제로 인식한다.
+    인식률을 높이기 위해 고해상도 비전 상위 모델(ANTHROPIC_VISION_MODEL)을 먼저 쓰고,
+    그 모델 호출이 실패하면(키 권한 없음·모델 미지원 등) 상담용 ANTHROPIC_MODEL(haiku)로
+    자동 폴백한다. → 상위 모델에 접근 권한이 없어도 OCR이 데모로 떨어지지 않는다.
+    """
+    base64_image = base64.b64encode(image_bytes).decode("utf-8")
+    context_msg = f"\n\n[참고: OCR로 추출된 원본 텍스트]\n{raw_text[:2000]}" if raw_text else ""
+
+    try:
+        return _claude_vision_call(ANTHROPIC_VISION_MODEL, base64_image, context_msg)
+    except Exception as e:
+        print(f"[OCR] Vision 상위 모델({ANTHROPIC_VISION_MODEL}) 실패({type(e).__name__}) "
+              f"→ {ANTHROPIC_MODEL}로 폴백")
+        if ANTHROPIC_MODEL == ANTHROPIC_VISION_MODEL:
+            raise
+        return _claude_vision_call(ANTHROPIC_MODEL, base64_image, context_msg)
 
 
 async def vision_structure(image_bytes: bytes, raw_text: str = "") -> tuple:
