@@ -28,7 +28,15 @@ function setFontScale(percent) {
     try { localStorage.setItem(FONT_SCALE_KEY, String(p)); } catch (e) { /* ignore */ }
 }
 
-// 저장된 글씨 크기를 불러와 적용(슬라이더 위치·배율 동기화). 페이지 로드 시 호출.
+// 헤더의 가−/가＋ 버튼: 현재 배율에서 delta(%)만큼 단계 조절.
+function stepFontScale(delta) {
+    const cur = Math.round(
+        (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--font-scale')) || 1) * 100
+    );
+    setFontScale(cur + delta);
+}
+
+// 저장된 글씨 크기를 불러와 적용(헤더 표시·배율 동기화). 페이지 로드 시 호출.
 function restoreFontScale() {
     let saved = 100;
     try { saved = parseInt(localStorage.getItem(FONT_SCALE_KEY), 10) || 100; } catch (e) { saved = 100; }

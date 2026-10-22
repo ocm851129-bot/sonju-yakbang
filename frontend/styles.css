@@ -1913,53 +1913,21 @@ html.ios .app-main {
     background: #FDECEA; color: var(--danger); font-size: 16px; font-weight: 700; border: none;
 }
 
-/* ==================== 글씨 크기 조절 (프로필 화면) ==================== */
-.font-size-setting {
-    background: var(--card-bg);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    padding: 18px 18px 14px;
-    margin-bottom: 18px;
-    box-shadow: var(--shadow);
+/* ==================== 글씨 크기 조절 (헤더: 긴급전화 옆) ==================== */
+.font-size-ctrl {
+    display: inline-flex; align-items: center; gap: 2px;
+    background: var(--card-bg); border: 1px solid var(--border);
+    border-radius: 999px; padding: 2px; box-shadow: var(--shadow);
 }
-.font-size-label {
-    display: flex; justify-content: space-between; align-items: center;
-    font-size: var(--font-size-lg); font-weight: 700; color: var(--text-primary);
-    margin-bottom: 14px;
-}
-.font-size-value {
-    color: var(--primary-dark); font-weight: 800;
-    background: var(--border); border-radius: 999px; padding: 2px 12px;
-}
-.font-size-row { display: flex; align-items: center; gap: 12px; }
-.font-size-min { font-size: 16px; color: var(--text-secondary); }
-.font-size-max { font-size: 30px; color: var(--text-secondary); line-height: 1; }
-.font-size-row input[type="range"] {
-    flex: 1; height: 44px; margin: 0;
-    -webkit-appearance: none; appearance: none; background: transparent;
+.font-size-ctrl .fs-btn {
+    min-width: 34px; height: 34px; border: none; border-radius: 50%;
+    background: transparent; color: var(--primary-dark);
+    font-size: 17px; font-weight: 800; line-height: 1;
     cursor: pointer; touch-action: manipulation;
+    display: flex; align-items: center; justify-content: center;
 }
-.font-size-row input[type="range"]::-webkit-slider-runnable-track {
-    height: 10px; border-radius: 999px;
-    background: linear-gradient(90deg, var(--primary-light), var(--primary));
-}
-.font-size-row input[type="range"]::-moz-range-track {
-    height: 10px; border-radius: 999px;
-    background: linear-gradient(90deg, var(--primary-light), var(--primary));
-}
-.font-size-row input[type="range"]::-webkit-slider-thumb {
-    -webkit-appearance: none; appearance: none;
-    width: 36px; height: 36px; margin-top: -13px; border-radius: 50%;
-    background: #fff; border: 4px solid var(--primary); box-shadow: var(--shadow);
-}
-.font-size-row input[type="range"]::-moz-range-thumb {
-    width: 36px; height: 36px; border-radius: 50%;
-    background: #fff; border: 4px solid var(--primary); box-shadow: var(--shadow);
-}
-.font-size-row input[type="range"]:focus { outline: none; }
-.font-size-row input[type="range"]:focus::-webkit-slider-thumb {
-    border-color: var(--primary-dark);
-}
-.font-size-hint {
-    font-size: var(--font-size-sm); color: var(--text-secondary); margin-top: 10px;
+.font-size-ctrl .fs-btn:active { background: var(--border); }
+.font-size-ctrl .fs-ctrl-value {
+    min-width: 42px; text-align: center;
+    font-size: 13px; font-weight: 800; color: var(--text-primary);
 }
