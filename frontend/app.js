@@ -342,6 +342,14 @@ function saveRecognizedMeds(medications) {
 }
 
 function renderOCRNoMatch(medsDiv, rawText) {
+    // 깨진 글자는 그대로 보여주지 않는다. 또렷하게 다시 찍도록 안내.
+    if (isGarbledText(rawText)) {
+        medsDiv.innerHTML = `
+            <p>📷 사진이 흐리거나 기울어서 글자를 또렷하게 읽지 못했어요.</p>
+            <p class="sub-text" style="margin-top:8px;">밝은 곳에서 처방전을 평평하게 펴고, 글자가 화면에 꽉 차도록 <strong>수직으로 또렷하게</strong> 다시 찍어주세요.</p>
+            <p class="sub-text" style="margin-top:8px;">또는 아래 <strong>‘약 이름으로 정보 찾기’</strong>에 약 이름을 직접 입력해 검색할 수 있어요.</p>`;
+        return;
+    }
     const preview = escapeHtml((rawText || '').trim().slice(0, 300)) || '(글자를 인식하지 못했습니다)';
     medsDiv.innerHTML = `
         <p>사진에서 아래 글자를 읽었지만, 등록된 약 정보를 찾지 못했어요.</p>
@@ -370,6 +378,18 @@ function escapeHtml(s) {
     return String(s || '').replace(/[&<>"']/g, c => (
         { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
     ));
+}
+
+// 깨진 글자(한글 조각·치환문자·의미없는 기호 범벅) 판별.
+//   기기 내 Tesseract OCR은 한글 처방전을 잘못 읽어 '뷁ㅁㄴ□…' 같은 깨진 텍스트를
+//   내놓는데, 이걸 어르신에게 그대로 보여주면 '글자가 깨졌다'고 느낀다.
+//   완성형 한글(가-힣)·영문·숫자 같은 '의미있는 글자' 비율이 낮으면 깨진 것으로 본다.
+function isGarbledText(s) {
+    const t = String(s || '').replace(/\s+/g, '');
+    if (!t) return true;
+    if (/�/.test(s)) return true;                 // 치환문자(�) = 인코딩 깨짐
+    const meaningful = (t.match(/[가-힣A-Za-z0-9]/g) || []).length;
+    return (meaningful / t.length) < 0.55;             // 의미있는 글자가 절반 미만이면 깨짐
 }
 
 // 식약처 허가정보를 어르신 친화 카드로 렌더링 (permit 객체 또는 drug-info 응답 공용)
@@ -425,10 +445,16 @@ function renderOCRResult(data) {
         // permit 정보가 없으면 기기 내 의약품 DB로 보강
         if (!med.permit && typeof enrichWithLocalDrug === 'function') enrichWithLocalDrug(med);
         const hasPermit = med.permit && (med.permit.easy_effect || med.permit.effect || med.permit.easy_caution || med.permit.caution);
+        // 깨진 글자는 표시하지 않는다(깨진 약 이름/복용법 → 빈값 처리).
+        const nameClean = (med.name && !isGarbledText(med.name)) ? med.name : '';
+        const freqClean = (med.frequency && !isGarbledText(med.frequency)) ? med.frequency : '';
+        const nameHtml = nameClean
+            ? `<strong>${escapeHtml(nameClean)}</strong>`
+            : '<span style="color:#888;">약 이름을 또렷하게 읽지 못했어요</span>';
         html += `
             <div class="med-item" style="border-color: var(--primary);">
-                <span class="med-name"><strong>${escapeHtml(med.name)}</strong></span>
-                <span style="font-size:14px;color:#555;">${escapeHtml(med.frequency || '')}</span>
+                <span class="med-name">${nameHtml}</span>
+                <span style="font-size:14px;color:#555;">${escapeHtml(freqClean)}</span>
             </div>`;
         if (hasPermit) {
             const merged = Object.assign({ item_name: med.name, ingredient: med.ingredient, category: med.category }, med.permit);
